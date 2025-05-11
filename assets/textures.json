@@ -1,0 +1,84 @@
+{
+    "entities": {
+        "player": [
+            "lea.png",
+            "lea_idle.png",
+            "lea_walk.png"
+        ],
+        "npc": [
+            "lea_idle.png",
+            "lea_walk.png"
+        ]
+    },
+    "player": "player.png",
+    "ui": {
+        "crosshair": "ui/crosshair.png",
+        "slot": "ui/slot.png",
+        "slot_focused": "ui/slot_focused.png",
+        "inventory": "inventory.png",
+        "inventory_slot": "inventory_slot.png",
+        "inventory_slot_focused": "inventory_slot_focused.png",
+        "healthbar_old": "healthbar.png",
+        "selection": "selection.png",
+        "main_menu_play": "main_menu_play.png",
+        "main_menu_title": "main_menu_title.png",
+        "loadbar_bg": "ui/loadbar_bg.png",
+        "loadbar_fg": "ui/loadbar_fg.png",
+        "health_info": "ui/health_info.png",
+        "healthbar": "ui/healthbar.png"
+    },
+    "tiles": {
+        "ground": "ground.png",
+        "dirt": "biomes/laria_valley/tiles/dirt.png",
+        "grass_dirt": "biomes/laria_valley/tiles/grass_dirt.png",
+        "stone": "biomes/laria_valley/tiles/stone.png",
+        "cave_dirt": "biomes/laria_valley/tiles/cave_dirt.png",
+        "cave_grass_dirt": "biomes/laria_valley/tiles/cave_grass_dirt.png",
+        "cave_stone": "biomes/laria_valley/tiles/cave_stone.png",
+        "grass": "biomes/laria_valley/grass.png",
+        "grass_high": "biomes/laria_valley/grass_high.png",
+        "grass_water": "biomes/laria_valley/grass_water.png",
+        "cave_ground": "ground.png",
+        "cave_grass": "biomes/laria_valley/grass.png",
+        "metal_ore":  "stone.png",
+        "precious_stone":  "stone.png",
+        "mushroom": "biomes/laria_valley/mushroom.png",
+        "tree": "biomes/laria_valley/tree.png"
+    },
+    "tiles_irregular": {
+        "mushroom": "biomes/laria_valley/mushroom.png",
+        "tree": "biomes/laria_valley/tree.png"
+    },
+    "tilemaps": {
+        "ground": "biomes/laria_valley/tiles/ground.png"
+    },
+    "color_maps": {
+        "grass": "biomes/laria_valley/grass_colors.png"
+    },
+    "background": {
+        "star_meadow": [
+            "biomes/star_meadow/background/bg_0.png",
+            "biomes/star_meadow/background/bg_mount_0.png",
+            "biomes/star_meadow/background/bg_1.png",
+            "biomes/star_meadow/background/bg_mount_1.png",
+            "biomes/star_meadow/background/bg_2.png"
+        ],
+        "farlands_plato": [
+            "biomes/farlands_plato/background/bg_0.png",
+            "biomes/farlands_plato/background/bg_1.png",
+            "biomes/farlands_plato/background/bg_2.png",
+            "biomes/farlands_plato/background/bg_3.png",
+            "biomes/farlands_plato/background/bg_4.png"
+        ],
+        "laria_valley": [
+            "biomes/laria_valley/background/laria_valley_sky.png",
+            "biomes/laria_valley/background/laria_valley_stars.png",
+            "biomes/laria_valley/background/laria_valley_planet.png",
+            "biomes/laria_valley/background/laria_valley_clouds_far.png",
+            "biomes/laria_valley/background/laria_valley_mounts.png",
+            "biomes/laria_valley/background/laria_valley_trees_far.png",
+            "biomes/laria_valley/background/laria_valley_clouds_near.png",
+            "biomes/laria_valley/background/laria_valley_trees_near.png"
+        ]
+    }
+}

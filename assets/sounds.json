@@ -1,0 +1,16 @@
+{
+    "fx": {
+        "start": ["fx/start.wav"]
+    },
+    "background_music": {
+        "star_meadow": [
+            "mf_pack/3. Darkwood Path.mp3"
+        ],
+        "farlands_plato": [
+            "mf_pack/5. Emberlight.mp3"
+        ],
+        "laria_valley": [
+            "mf_pack/8. Throne of Storms.mp3"
+        ]
+    }
+}
