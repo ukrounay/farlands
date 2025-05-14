@@ -14,6 +14,8 @@ from src.shared.globals import *
 # -----------------------------
 # Клас фізичного тіла
 # -----------------------------
+
+
 class RigidBody(pygame.sprite.Sprite):
 
     def __init__(self, x, y, width, height, texture, mass, gravity_enabled=True, is_immovable=False, is_physical=True):
@@ -80,7 +82,11 @@ class RigidBody(pygame.sprite.Sprite):
     def get_uv(self):
         return matrices["normal"]
 
-    def interact(self, other):
+    def interact(self, other) -> bool:
+        """
+        :param other: other body this body interacting with
+        :return: should skip physics for this interaction
+        """
         return False
 
 class Entity(RigidBody):
@@ -117,6 +123,10 @@ class Entity(RigidBody):
 
     def kill(self):
         self.is_alive = False
+        self.on_kill()
+
+    def on_kill(self):
+        pass
 
 class Particle(Entity):
     def __init__(self, x, y, width, height, texture, direction=Vec2(), max_age=1, gravity_enabled=True, is_immovable=False, is_physical=False):
@@ -127,10 +137,14 @@ class Particle(Entity):
         t = self.age / self.max_age
         return t*t
 
+    def interact(self, other):
+        return True # should skip collision
+
 class TileBreakParticle(Particle):
-    def __init__(self, block_pos, texture, size=Vec2(0.25,0.25), direction=Vec2(), max_age=1, gravity_enabled=True, is_immovable=False, is_physical=False):
+    def __init__(self, block_pos, tile_type, size=Vec2(0.25,0.25), direction=Vec2(), max_age=1, gravity_enabled=True, is_immovable=False, is_physical=False):
         super().__init__((block_pos.x + random.random()) * TILE_SIZE, (block_pos.y + random.random()) * TILE_SIZE,
-                         TILE_SIZE * size.x, TILE_SIZE * size.y, texture, direction, max_age, gravity_enabled, is_immovable, is_physical)
+                         TILE_SIZE * size.x, TILE_SIZE * size.y, None, direction, max_age, gravity_enabled, is_immovable, is_physical)
+        self.tile_type = tile_type
         self.uv_offset = create_transformation_matrix(
             position=Vec2(random.randint(0, 3), random.randint(0, 3)) * size * TILE_SIZE,
             size=Vec2(1,1))
@@ -155,6 +169,105 @@ class LivingEntity(Entity):
         self.is_grounded = False
         self.is_traveling_left = False
         self.is_traveling_right = False
+        self.jump_force = -1000*TILE_SIZE
+        self.jump_height = 1.2
+        self.movement_speed = 5*TILE_SIZE
+
+
+        self.direction = Direction.RIGHT
+        self.environment = None
+        self.inventory = Inventory(size=9)
+
+    def jump(self, dt):
+        if not self.is_jumping and self.is_grounded:
+            self.is_jumping = True
+            # self.accelerate(vec2(0, -GRAVITY *2))
+
+            vel = math.sqrt(2 * self.jump_height * GRAVITY)*TILE_SIZE
+            self.position_old.y = self.position.y
+            self.position.y -= vel * dt
+
+    # def move(self, d):
+    #     self.accelerate(d)
+
+    def move_left(self, dt):
+        # print(dt)
+        # if self.get_velocity().x > -self.movement_speed:
+        #     self.move(Vec2(-self.movement_speed / (dt * dt), 0))
+        self.is_traveling_left = True
+        self.direction = Direction.LEFT
+
+
+    def move_right(self, dt):
+        # print(dt)
+        # if self.get_velocity().x < self.movement_speed:
+        #     self.move(Vec2(self.movement_speed / (dt * dt), 0))
+        self.is_traveling_right = True
+        self.direction = Direction.RIGHT
+
+
+    # def update(self, dt):
+    #     super().update(dt)
+    #
+    # def tick(self, dt):
+    #     super().tick(dt)
+
+    def get_uv(self):
+        if self.direction == Direction.LEFT:
+            return create_transformation_matrix(size=Vec2(1,1), flip_x=True)
+        return matrices["normal"]
+        #     return [
+        #         (self.animation_frame + 1) * self.size.x / self.texture_sheet_width, 0,
+        #         self.animation_frame * self.size.x / self.texture_sheet_width, 1,
+        #     ]
+        # else:
+        #     return [
+        #         self.animation_frame * self.size.x / self.texture_sheet_width, 0,
+        #         (self.animation_frame + 1) * self.size.x / self.texture_sheet_width, 1,
+        #     ]
+
+    # def update_state(self):
+    #     self.state = PlayerState.IDLE_RIGHT if self.direction == PlayerDirection.RIGHT else PlayerState.IDLE_LEFT
+    #     if(self.is_crouching):
+    #         self.state = PlayerState.CROUCHING_RIGHT if self.direction == PlayerDirection.RIGHT else PlayerState.CROUCHING_LEFT
+    #     if(self.is_jumping):
+    #         self.state = PlayerState.JUMPING_RIGHT if self.direction == PlayerDirection.RIGHT else PlayerState.JUMPING_LEFT
+
+    def update_position(self, dt):
+        if not self.is_immovable:
+            velocity = self.get_velocity()
+            self.position_old = self.position.copy()
+            diff = velocity + (self.acceleration * dt * dt)
+            # diff.x = diff.x % 10*TILE_SIZE
+            # diff.y = diff.y % 10*TILE_SIZE
+            if diff.x > 5 * TILE_SIZE: diff.x = 5 * TILE_SIZE
+            if diff.y > 5 * TILE_SIZE: diff.y = 5 * TILE_SIZE
+            if diff.x < -5 * TILE_SIZE: diff.x = -5 * TILE_SIZE
+            if diff.y < -5 * TILE_SIZE: diff.y = -5 * TILE_SIZE
+
+            self.position.y += diff.y
+
+            if self.is_grounded:
+                if self.is_traveling_left:
+                    self.position.x -= self.movement_speed * dt
+                if self.is_traveling_right:
+                    self.position.x += self.movement_speed * dt
+            if not self.is_grounded:
+                movement_diff = self.movement_speed * dt * 0.5
+                if self.is_traveling_left:
+                    self.position.x -= movement_diff
+                    self.position_old.x -= movement_diff
+                    # diff.x = max(movement_diff, diff.x)
+                if self.is_traveling_right:
+                    self.position.x += movement_diff
+                    self.position_old.x += movement_diff
+                    # diff.x = min(movement_diff, diff.x)
+                self.position.x += diff.x
+
+            # self.is_traveling_left = False
+            # self.is_traveling_right = False
+
+            self.acceleration = Vec2(0, 0)
 
     def damage(self, amount):
         self.health -= amount
@@ -248,111 +361,13 @@ class ItemStackEntity(Entity):
             if other.stack.item.tile_type == self.stack.item.tile_type:
                 self.stack.count += other.stack.count
                 other.kill()
-                return True
+            return True
 
 
 class Player(LivingEntity):
     def __init__(self, x, y, width, height, texture, mass, health=100, max_age=0, gravity_enabled=True, is_immovable=False, is_physical=True):
         super().__init__(x, y, width, height, texture, mass, health, "player", max_age, gravity_enabled, is_immovable, is_physical)
-        self.jump_force = -1000*TILE_SIZE
-        self.jump_height = 1.2
-        self.movement_speed = 5*TILE_SIZE
 
-
-        self.direction = Direction.RIGHT
-        self.environment = None
-        self.inventory = Inventory(size=9)
-
-    def jump(self, dt):
-        if not self.is_jumping and self.is_grounded:
-            self.is_jumping = True
-            # self.accelerate(vec2(0, -GRAVITY *2))
-
-            vel = math.sqrt(2 * self.jump_height * GRAVITY)*TILE_SIZE
-            self.position_old.y = self.position.y
-            self.position.y -= vel * dt
-
-    # def move(self, d):
-    #     self.accelerate(d)
-
-    def move_left(self, dt):
-        # print(dt)
-        # if self.get_velocity().x > -self.movement_speed:
-        #     self.move(Vec2(-self.movement_speed / (dt * dt), 0))
-        self.is_traveling_left = True
-        self.direction = Direction.LEFT
-
-
-    def move_right(self, dt):
-        # print(dt)
-        # if self.get_velocity().x < self.movement_speed:
-        #     self.move(Vec2(self.movement_speed / (dt * dt), 0))
-        self.is_traveling_right = True
-        self.direction = Direction.RIGHT
-
-
-    # def update(self, dt):
-    #     super().update(dt)
-    #
-    # def tick(self, dt):
-    #     super().tick(dt)
-
-    def get_uv(self):
-        if self.direction == Direction.LEFT:
-            return create_transformation_matrix(size=Vec2(1,1), flip_x=True)
-        return matrices["normal"]
-        #     return [
-        #         (self.animation_frame + 1) * self.size.x / self.texture_sheet_width, 0,
-        #         self.animation_frame * self.size.x / self.texture_sheet_width, 1, 
-        #     ]
-        # else:
-        #     return [
-        #         self.animation_frame * self.size.x / self.texture_sheet_width, 0,
-        #         (self.animation_frame + 1) * self.size.x / self.texture_sheet_width, 1, 
-        #     ]            
-
-    # def update_state(self):
-    #     self.state = PlayerState.IDLE_RIGHT if self.direction == PlayerDirection.RIGHT else PlayerState.IDLE_LEFT
-    #     if(self.is_crouching):
-    #         self.state = PlayerState.CROUCHING_RIGHT if self.direction == PlayerDirection.RIGHT else PlayerState.CROUCHING_LEFT
-    #     if(self.is_jumping):
-    #         self.state = PlayerState.JUMPING_RIGHT if self.direction == PlayerDirection.RIGHT else PlayerState.JUMPING_LEFT
-
-    def update_position(self, dt):
-        if not self.is_immovable:
-            velocity = self.get_velocity()
-            self.position_old = self.position.copy()
-            diff = velocity + (self.acceleration * dt * dt)
-            # diff.x = diff.x % 10*TILE_SIZE
-            # diff.y = diff.y % 10*TILE_SIZE
-            if diff.x > 5 * TILE_SIZE: diff.x = 5 * TILE_SIZE
-            if diff.y > 5 * TILE_SIZE: diff.y = 5 * TILE_SIZE
-            if diff.x < -5 * TILE_SIZE: diff.x = -5 * TILE_SIZE
-            if diff.y < -5 * TILE_SIZE: diff.y = -5 * TILE_SIZE
-
-            self.position.y += diff.y
-
-            if self.is_grounded:
-                if self.is_traveling_left:
-                    self.position.x -= self.movement_speed * dt
-                if self.is_traveling_right:
-                    self.position.x += self.movement_speed * dt
-            if not self.is_grounded:
-                movement_diff = self.movement_speed * dt * 0.5
-                if self.is_traveling_left:
-                    self.position.x -= movement_diff
-                    self.position_old.x -= movement_diff
-                    # diff.x = max(movement_diff, diff.x)
-                if self.is_traveling_right:
-                    self.position.x += movement_diff
-                    self.position_old.x += movement_diff
-                    # diff.x = min(movement_diff, diff.x)
-                self.position.x += diff.x
-
-            # self.is_traveling_left = False
-            # self.is_traveling_right = False
-
-            self.acceleration = Vec2(0, 0)
 
     def interact(self, other):
         if isinstance(other, ItemStackEntity):
@@ -364,11 +379,12 @@ class Player(LivingEntity):
 
 class Tile(RigidBody):
 
-    def __init__(self, x, y, tile_type, is_physical=True):
+    def __init__(self, x, y, tile_type, is_physical=True, require_support=False):
         super().__init__(x*TILE_SIZE, y*TILE_SIZE, TILE_SIZE, TILE_SIZE, None, 0, False, True, is_physical)
         self.tile_pos = Vec2(x, y)
         self.tile_type = tile_type
         self.state = [1,1]
+        self.require_support = require_support
 
     def get_uv(self, tileset_width=6, tileset_height=4):
         # uv = [
@@ -448,8 +464,6 @@ class Tile(RigidBody):
         pass
 
 
-
-
 def coord_round(value):
     return math.floor(value) if value >= 0 else math.floor(value) - 1
 
@@ -483,6 +497,7 @@ class BackgroundLayer:
         diff = self.last_camera_offset - offset
         self.offset += diff * self.speed / screenWidth + self.movement_speed * dt
         self.last_camera_offset = offset
+
 # # Ground class
 # class GroundTile(GameObject):
 #     def __init__(self, x, y, texture, layer):
@@ -512,8 +527,8 @@ class Camera:
         self.renderBounds = pygame.Rect(0, 0, 0, 0)
         self.render_distance = 10
 
-    def updateBounds(self, screenWidth, screenHeight):
-        self.renderBounds = pygame.Rect(TILE_SIZE * -2, TILE_SIZE * -2, screenWidth + TILE_SIZE * 2, screenHeight + TILE_SIZE * 2)
+    def update_bounds(self, screenWidth, screenHeight):
+        self.renderBounds = pygame.Rect(0, 0, screenWidth, screenHeight)
         self.render_distance = max(screenWidth, screenHeight) // TILE_SIZE + 1
 
     def set_follow_point(self, fp):

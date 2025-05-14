@@ -312,9 +312,9 @@ def create_transformation_matrix(
 
     return matrix
 
-def is_inside_rotated_square(mx, my, cx, cy, box_size):
-    dx = mx - cx
-    dy = my - cy
+def is_inside_rotated_square(mouse, box_center, box_size):
+    dx = mouse.x - box_center.x
+    dy = mouse.y - box_center.y
     # Rotate mouse point -45 degrees around center (undo the texture rotation)
     rx = (dx + dy) / math.sqrt(2)
     ry = (dy - dx) / math.sqrt(2)

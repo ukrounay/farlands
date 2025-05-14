@@ -20,6 +20,7 @@
         "inventory_slot_focused": "inventory_slot_focused.png",
         "healthbar_old": "healthbar.png",
         "selection": "selection.png",
+        "main_menu_bg": "mm_bg.png",
         "main_menu_play": "main_menu_play.png",
         "main_menu_title": "main_menu_title.png",
         "loadbar_bg": "ui/loadbar_bg.png",

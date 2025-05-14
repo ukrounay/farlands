@@ -10,7 +10,7 @@ class World:
         self.player = None
 
     def create_map(self, init_range, client):
-        self.map_manager = MapManager()
+        self.map_manager = MapManager(self)
         self.environment.map_manager = self.map_manager
         d = (1 - client.loaded) / (init_range*init_range * 5)
         for cx in range(-init_range, init_range):
@@ -29,7 +29,8 @@ class World:
 
 
 class MapManager:
-    def __init__(self, chunk_size=16, seed=1):
+    def __init__(self, world, chunk_size=16, seed=1):
+        self.is_plants_planted = {}
         self.seed = seed
         random.seed(self.seed)
         self.chunk_size = chunk_size
@@ -39,7 +40,7 @@ class MapManager:
         self.render_meshes = [{},{},{}]
         self.chunk_vaos = {}
         self.dirty_chunks = set()
-
+        self.world = world
         # for cx in range(-4, 4):
         #     for cy in range(-4, 4):
         #         self.initialize_chunk(cx, cy)
@@ -79,8 +80,18 @@ class MapManager:
                         self.map[(cx, cy)][x][y] = Tile(global_x + x, global_y + y, t)
                     elif t == "cave_dirt" or t == "cave_grass_dirt" or t == "cave_stone":
                         self.bg_map[(cx, cy)][x][y] = Tile(global_x + x, global_y + y, t)
+                    # elif t == "grass" or t == "grass_high" or t == "grass_water":
+                    #     self.map[(cx, cy)][x][y] = Tile(global_x + x, global_y + y, t, require_support=True)
                     else: self.map[(cx, cy)][x][y] = Tile(global_x + x, global_y + y, t)
 
+        self.place_plants(global_x, global_y)
+
+        self.mark_chunk_dirty(cx, cy)
+
+    def place_plants(self, global_x, global_y):
+
+        cx, cy, _, _ = self.get_local_coords(global_x, global_y)
+        if (cx, cy) in self.is_plants_planted: return
 
         for x in range(self.chunk_size):
             for y in range(self.chunk_size):
@@ -117,17 +128,20 @@ class MapManager:
                                 r = random.uniform(0, 1)
                                 if r > 0.5:
                                     self.bg_map[(cx, cy)][x][y - 1] = Tile(global_x + x, global_y + y - 1,
-                                                                           decoration_tile_type, False)
+                                                                           decoration_tile_type, False, require_support=True)
                                 else:
                                     self.fg_map[(cx, cy)][x][y - 1] = Tile(global_x + x, global_y + y - 1,
-                                                                           decoration_tile_type, False)
+                                                                           decoration_tile_type, False, require_support=True)
                             case "grass" | "grass_high" | "grass_water":
                                 self.bg_map[(cx, cy)][x][y - 1] = Tile(global_x + x, global_y + y - 1,
-                                                                       decoration_tile_type, False)
-                                self.fg_map[(cx, cy)][x][y - 1] = Tile(global_x + x, global_y + y - 1, "grass", False)
+                                                                       decoration_tile_type, False, require_support=True)
+                                self.fg_map[(cx, cy)][x][y - 1] = Tile(global_x + x, global_y + y - 1,
+                                                                       "grass", False, require_support=True)
 
-        self.mark_chunk_dirty(cx, cy)
-
+        self.is_plants_planted[(cx,cy)] = True
+        
+        
+        
     def mark_chunk_dirty(self, cx, cy):
         if not (cx, cy) in self.dirty_chunks:
             self.dirty_chunks.add((cx, cy))
@@ -151,9 +165,97 @@ class MapManager:
 
         return cx, cy, lx, ly
 
-    def get_tile(self, global_x, global_y, layer=0):
+    def get_tile(self, global_x, global_y, layer=0) -> Tile:
         cx, cy, lx, ly = self.get_local_coords(global_x, global_y)
         return self.get_chunk(cx, cy, layer)[lx][ly]
+
+    def get_first_non_none_tile(self, start, end):
+        """Find the first non-None tile intersected by a line using Bresenham's Line Algorithm."""
+        x0, y0 = int(start.x), int(start.y)
+        x1, y1 = int(end.x), int(end.y)
+
+        dx = abs(x1 - x0)
+        dy = abs(y1 - y0)
+        x, y = x0, y0
+
+        sx = 1 if x0 < x1 else -1
+        sy = 1 if y0 < y1 else -1
+
+        if dx > dy:
+            err = dx // 2
+            while x != x1:
+                tile = self.get_tile(x, y)
+                if tile is not None:
+                    return tile
+                err -= dy
+                if err < 0:
+                    y += sy
+                    err += dx
+                x += sx
+        else:
+            err = dy // 2
+            while y != y1:
+                tile = self.get_tile(x, y)
+                if tile is not None:
+                    return tile
+                err -= dx
+                if err < 0:
+                    x += sx
+                    err += dy
+                y += sy
+
+        # Check the end point
+        tile = self.get_tile(x1, y1)
+        if tile is not None:
+            return tile
+
+        return None
+
+    import math
+
+    def trace_ray(self, start, direction, max_steps=10):
+        """Trace a ray through a grid and return first tile and side hit.
+
+        direction should be normalized (unit vector).
+        Returns (tile, side, (tile_x, tile_y))
+        """
+        tile, side_hit = None, None
+
+        x, y = start.x, start.y
+        dx, dy = direction.x, direction.y
+
+        # Current tile
+        tile_x = int(math.floor(x))
+        tile_y = int(math.floor(y))
+
+        # Direction steps
+        step_x = 1 if dx > 0 else -1
+        step_y = 1 if dy > 0 else -1
+
+        # Distance to next tile boundary
+        t_max_x = ((tile_x + (1 if dx > 0 else 0)) - x) / dx if dx != 0 else float('inf')
+        t_max_y = ((tile_y + (1 if dy > 0 else 0)) - y) / dy if dy != 0 else float('inf')
+
+        # How far we must move along the ray to cross a tile
+        t_delta_x = abs(1 / dx) if dx != 0 else float('inf')
+        t_delta_y = abs(1 / dy) if dy != 0 else float('inf')
+
+        for _ in range(max_steps):
+            # Check current tile
+            tile = self.get_tile(tile_x, tile_y)
+            if tile is not None:
+                return tile, side_hit, (tile_x, tile_y)
+
+            if t_max_x < t_max_y:
+                t_max_x += t_delta_x
+                tile_x += step_x
+                side_hit = 'left' if step_x == -1 else 'right'
+            else:
+                t_max_y += t_delta_y
+                tile_y += step_y
+                side_hit = 'top' if step_y == -1 else 'bottom'
+
+        return None, None, None
 
     def get_chunk(self, cx, cy, layer=0):
         chunk_key = (cx, cy)
@@ -163,31 +265,51 @@ class MapManager:
         return self.map[chunk_key]
 
     def update_tile(self, global_x, global_y, update_neighbours=False):
-        tile = self.get_tile(global_x, global_y)
-        if tile is not None:
-            tile.update_state(
-                neighbours=self.get_neighbors(global_x, global_y),
-                d_neighbours=self.get_diagonal_neighbors(global_x, global_y)
-            )
+        was_deleted = False
+        for l in range(-1, 2):
+            tile = self.get_tile(global_x, global_y, l)
+            if tile is not None:
+                neighbours = self.get_neighbors(global_x, global_y)
+                d_neighbours = self.get_diagonal_neighbors(global_x, global_y)
+                tile.update_state(
+                    neighbours=neighbours,
+                    d_neighbours=d_neighbours
+                )
+                if tile.require_support and not neighbours[2]:
+                    print("deleting")
+                    self.delete_tile(Vec2(global_x, global_y), l)
+                    was_deleted = True
+
 
         if update_neighbours:
-            self.update_tile(global_x - 1, global_y, False)
-            self.update_tile(global_x + 1, global_y, False)
-            self.update_tile(global_x, global_y - 1, False)
-            self.update_tile(global_x, global_y + 1, False)
+            self.update_tile(global_x - 1, global_y, was_deleted)
+            self.update_tile(global_x + 1, global_y, was_deleted)
+            self.update_tile(global_x, global_y - 1, was_deleted)
+            self.update_tile(global_x, global_y + 1, was_deleted)
             # diagonal
-            self.update_tile(global_x - 1, global_y - 1, False)
-            self.update_tile(global_x + 1, global_y + 1, False)
-            self.update_tile(global_x + 1, global_y - 1, False)
-            self.update_tile(global_x - 1, global_y + 1, False)
+            self.update_tile(global_x - 1, global_y - 1, was_deleted)
+            self.update_tile(global_x + 1, global_y + 1, was_deleted)
+            self.update_tile(global_x + 1, global_y - 1, was_deleted)
+            self.update_tile(global_x - 1, global_y + 1, was_deleted)
 
-    def delete_tile(self, global_x, global_y):
+    def delete_tile(self, pos, layer=0):
+        global_x, global_y = pos.x, pos.y
         cx, cy, lx, ly = self.get_local_coords(global_x, global_y)
         chunk_key = (cx, cy)
         if chunk_key in self.map:
-            tile = self.map[chunk_key][lx][ly]
+            chunk = self.get_chunk(cx, cy, layer)
+            tile = chunk[lx][ly]
             if tile is not None:
-                self.map[chunk_key][lx][ly] = None
+
+                self.world.environment.add_body(ItemStackEntity((pos.x+0.5)*TILE_SIZE, (pos.y+0.5)*TILE_SIZE,
+                                                                  ItemStack(Item(tile.tile_type), 1)))
+                for pn in range(int((random.random()*5+5))):
+                    self.world.environment.add_body(
+                        TileBreakParticle(pos, tile.tile_type, max_age=random.random()*0.3+0.2,
+                                 direction=Vec2(random.random(), random.random())*10))
+
+
+                chunk[lx][ly] = None
                 self.update_tile(global_x, global_y, True)
 
         self.mark_chunk_dirty(cx, cy)
@@ -446,7 +568,7 @@ class Environment(pygame.sprite.Group):
     # Функція для перевірки колізій
     # -----------------------------
 
-    def check_collision(self, body1, body2):
+    def check_collision(self, body1, body2, skip_inside_check=True):
 
         collision = (body1.position.x < body2.position.x + body2.size.x and
                      body1.position.x + body1.size.x > body2.position.x and
@@ -454,8 +576,11 @@ class Environment(pygame.sprite.Group):
                      body1.position.y + body1.size.y > body2.position.y)
         # return collision, False, False
 
-        if not collision:
-            return False, False, False  # No need to check is_inside
+        if not (body1.is_physical and body2.is_physical):
+            collision = False
+
+        if (not collision) or skip_inside_check:
+            return collision, False, False  # No need to check is_inside
 
         is_body1_inside = (body1.position.x > body2.position.x and
                            body1.position.x + body1.size.x < body2.position.x + body2.size.x and
@@ -466,9 +591,6 @@ class Environment(pygame.sprite.Group):
                            body2.position.x + body2.size.x < body1.position.x + body1.size.x and
                            body2.position.y > body1.position.y and
                            body2.position.y + body2.size.y < body1.position.y + body1.size.y)
-
-        if not (body1.is_physical and body2.is_physical):
-            return False, is_body1_inside, is_body2_inside
 
         return collision, is_body1_inside, is_body2_inside
 
@@ -497,6 +619,8 @@ class Environment(pygame.sprite.Group):
 
             if body1.interact(body2): return
 
+            if body1.is_immovable and body2.is_immovable: return
+
             # print("Collision detected!")
 
             # Розрахунок глибини проникнення по осях
@@ -523,26 +647,23 @@ class Environment(pygame.sprite.Group):
             overlap_y = min(y1 + h1 - y2, y2 + h2 - y1)
 
             if abs(overlap_x) < abs(overlap_y):
-                if x1 < x2: normal = [1, 0]  # Зіткнення зліва
-                else: normal = [-1, 0]  # Зіткнення справа
+                if x1 < x2:
+                    normal = [1, 0]  # Зіткнення зліва (вказується бік ПЕРШОГО тіла)
+                else:
+                    normal = [-1, 0]  # Зіткнення справа (вказується бік ПЕРШОГО тіла)
                 penetration = overlap_x
             else:
                 if y1 < y2:
-                    normal = [0, 1]  # Зіткнення зверху
+                    normal = [0, 1]  # Зіткнення зверху (вказується бік ПЕРШОГО тіла)
+                    print("xdij bdfi jfd")
+                    if isinstance(body2, LivingEntity):
+                        body2.is_grounded = True
+                        body2.is_jumping = False
+                    if isinstance(body1, LivingEntity):
+                        body1.is_grounded = True
+                        body1.is_jumping = False
                 else:
-                    normal = [0, -1]  # Зіткнення знизу
-
-                # print("xdij bdfi jfd")
-
-                if isinstance(body2, LivingEntity):
-                    body2.is_grounded = True
-                    body2.is_jumping = False
-                if isinstance(body1, LivingEntity):
-                    body1.is_grounded = True
-                    body1.is_jumping = False
-
-                # if body1.get_velocity().x != 0: body1.position_old.x += body1.get_velocity().x * 0.75
-                # if body2.get_velocity().x != 0: body2.accelerate(vec2(body2.get_velocity().x / -(dt * dt) * 0.8, 0))
+                    normal = [0, -1]  # Зіткнення знизу (вказується бік ПЕРШОГО тіла)
                 penetration = overlap_y
 
 
@@ -596,10 +717,10 @@ class Environment(pygame.sprite.Group):
 
             if edge_normal == Vec2(0, -1):
                 print("xdij bdfi jfd")
-                if isinstance(body2, Player):
+                if isinstance(body2, LivingEntity):
                     body2.is_grounded = True
                     body2.is_jumping = False
-                if isinstance(body1, Player):
+                if isinstance(body1, LivingEntity):
                     body1.is_grounded = True
                     body1.is_jumping = False
 

@@ -3,6 +3,7 @@ import subprocess
 import sys
 
 from src.client.renderer import *
+from src.client.screens import *
 from src.shared.physics.objects import *
 from src.shared.sounds import load_sounds_from_json
 from src.shared.textures import *
@@ -12,6 +13,7 @@ class Client:
     player: Player | None
 
     def __init__(self):
+        self.screens = {}
         self.input_flags = {
             "scroll_d": 0,
             "mouse_clicked": False,
@@ -54,6 +56,30 @@ class Client:
     def load_resources(self):
         # Load data from the JSON file
         self.textures, texture_dict = load_textures_from_json('assets/textures.json')
+
+
+        self.screens["main_menu"] = Screen(
+            Image(0,0,
+                self.textures["ui"]["main_menu_bg"][1],
+                self.textures["ui"]["main_menu_bg"][2],
+                self.textures["ui"]["main_menu_bg"][0]
+            ),
+            [
+                Image(0.5, 0.35,
+                    self.textures["ui"]["main_menu_title"][1],
+                    self.textures["ui"]["main_menu_title"][2],
+                    self.textures["ui"]["main_menu_title"][0]
+                ),
+            ],
+            [
+                Button(0.5, 50.6,
+                    self.textures["ui"]["main_menu_play"][1],
+                    self.textures["ui"]["main_menu_play"][2],
+                    self.textures["ui"]["main_menu_play"][0],
+                    ButtonForm.SQ45
+                ),
+            ])
+
         # self.tilemap = Tilemap(texture_dict)
         self.sounds = load_sounds_from_json('assets/sounds.json')
 
@@ -182,8 +208,6 @@ class Client:
     #     elif sys.platform == "darwin":
     #         print("⚠️ macOS: direct window positioning is not supported via SDL")
 
-    import ctypes
-
     def get_monitor_resolution_windows(self):
         user32 = ctypes.windll.user32
         user32.SetProcessDPIAware()  # Optional: avoid DPI scaling
@@ -254,7 +278,7 @@ class Client:
         # Update screen dimensions
         self.screenWidth = width
         self.screenHeight = height
-        self.camera.updateBounds(width, height)
+        self.camera.update_bounds(width, height)
 
         self.ortho_projection_matrix = self.create_ortho_projection_matrix()
 
