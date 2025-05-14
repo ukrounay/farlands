@@ -1,0 +1,243 @@
+---
+config:
+  layout: elk
+  theme: redux
+---
+classDiagram
+direction LR
+    class RigidBody {
+	    +Vec2 position
+	    +Vec2 position_old
+	    +Vec2 size
+	    +Vec2 acceleration
+	    +float mass
+	    +bool gravity_enabled
+	    +bool is_immovable
+	    +bool is_physical
+	    +pygame.Rect rect
+	    +apply_gravity()
+	    +accelerate(acc)
+	    +get_velocity()
+	    +update_position(dt)
+	    +get_uv()
+	    +interact(other)
+    }
+    class Entity {
+	    +int age
+	    +int max_age
+	    +bool is_alive
+	    +bool is_talking
+	    +str talk_bubble_text
+	    +float text_bubble_remaining_time
+	    +update(dt)
+	    +tick(dt)
+	    +get_text_bubble()
+	    +set_text_bubble(text, time)
+	    +kill()
+	    +on_kill()
+    }
+    class Particle {
+	    +get_transparency()
+	    +interact(other)
+    }
+    class TileBreakParticle {
+	    +Vec2 uv_offset
+	    +get_uv()
+    }
+    class LivingEntity {
+	    +float health
+	    +float max_health
+	    +float animation_frame
+	    +int animation_frames
+	    +Vec2 texture_size
+	    +str entity_type
+	    +LivingEntityState state
+	    +bool is_jumping
+	    +bool is_grounded
+	    +bool is_traveling_left
+	    +bool is_traveling_right
+	    +float jump_force
+	    +float movement_speed
+	    +Direction direction
+	    +Inventory inventory
+	    +jump(dt)
+	    +move_left(dt)
+	    +move_right(dt)
+	    +update_position(dt)
+	    +damage(amount)
+	    +heal(amount)
+	    +tick(dt)
+	    +update_state(dt)
+	    +get_uv()
+    }
+    class Inventory {
+	    +int size
+	    +list~ItemStack~ items
+	    +int slot
+	    +get_current()
+	    +set_slot_pointer(slot_number)
+	    +move_slot_pointer(amount)
+	    +set_item(item_stack, slot_number)
+	    +pick_item(item_stack)
+	    +use(used_slot)
+    }
+    class Item {
+	    +str tile_type
+    }
+    class ItemStack {
+	    +Item item
+	    +int count
+    }
+    class ItemStackEntity {
+	    +ItemStack stack
+	    +interact(other)
+    }
+    class Player {
+	    +interact(other)
+    }
+    class Tile {
+	    +Vec2 tile_pos
+	    +str tile_type
+	    +list~int~ state
+	    +bool require_support
+	    +Vec2 position
+	    +str tile_type
+	    +bool is_physical
+	    +bool require_support
+	    +update_state(neighbours, d_neighbours)
+	    +get_uv()
+	    +update_state(neighbours, d_neighbours)
+    }
+    class World {
+	    +MapManager map_manager
+	    +Environment environment
+	    +Player player
+	    +create_map(init_range, client)
+    }
+    class MapManager {
+	    -int chunk_size
+	    -int seed
+	    -dict map
+	    -dict bg_map
+	    -dict fg_map
+	    -dict render_meshes
+	    -set dirty_chunks
+	    -dict chunk_vaos
+	    -dict is_plants_planted
+	    +update(cx, cy, sim_range, max_chunks_number)
+	    +initialize_chunk(cx, cy)
+	    +place_plants(global_x, global_y)
+	    +mark_chunk_dirty(cx, cy)
+	    +get_local_coords(global_x, global_y)
+	    +get_tile(global_x, global_y, layer)
+	    +get_first_non_none_tile(start, end)
+	    +trace_ray(start, direction, max_steps)
+	    +get_chunk(cx, cy, layer)
+	    +update_tile(global_x, global_y, update_neighbours)
+	    +delete_tile(pos, layer)
+	    +set_tile(global_x, global_y, tile_type)
+	    +get_neighbors(global_x, global_y)
+	    +get_diagonal_neighbors(global_x, global_y)
+	    +update_chunk(cx, cy)
+    }
+    class Environment {
+	    +list bodies
+	    +list light_sources
+	    +int time_running
+	    +int daytime
+	    +int day_period
+	    +add_body(body)
+    }
+    class Vec2 {
+	    float x
+	    float y
+	    +Vec2(x=0.0, y=0.0)
+	    +Vec2 __add__(other)
+	    +Vec2 __sub__(other)
+	    +Vec2 __mul__(multiplier)
+	    +Vec2 __div__(multiplier)
+	    +Vec2 __truediv__(multiplier)
+	    +float length()
+	    +float distance_to(other)
+	    +Vec2 normalized()
+	    +str __str__()
+	    +Vec2 copy()
+	    +Vec2 get_normalized()
+	    +Vec2 get_rotated(angle_degrees)
+    }
+    class Client {
+	    +Player player
+	    +dict screens
+	    +dict input_flags
+	    +list focused_objects
+	    +Vec2 mouse_pos
+	    +server_clock
+	    +mat ortho_projection_matrix
+	    +int screenHeight
+	    +int screenWidth
+	    +int sceneHeight
+	    +int sceneWidth
+	    +screen
+	    +dict keybinds
+	    +World world
+	    +Camera camera
+	    +list background_layers
+	    +bg_source
+	    +str biome_name
+	    +sounds
+	    +dict currently_playing
+	    +dict textures
+	    +bool is_debugging
+	    +bool is_initialized
+	    +bool is_loading
+	    +int loaded
+	    +Renderer renderer
+	    +dict preferences
+	    +initialize()
+	    +load_resources()
+	    +create_ortho_projection_matrix() float[][]
+	    +get_monitor_resolution_windows() int,int
+	    +get_monitor_resolution_linux() int,int
+	    +get_monitor_resolution() int,int
+	    +setup_screen(w, h)
+	    +update(dt)
+	    +play_sound(category, name, variation=0, force_play=False, maxtime=0, fade=0)
+    }
+    class Renderer {
+	    - default_shader
+	    - outline_shader
+	    - postprocess_shader
+	    - default_shader_uniforms
+	    - outline_shader_uniforms
+	    - postprocess_shader_uniforms
+	    - non_centered_vao
+	    - quad_vao
+	    - create_quad_buffers(centered)
+	    - draw_quad(u_loc, texture, uv_transform, model_matrix, transparency)
+	    - draw_text(shader_program_uniforms, x, y, text, font, color, font_size, centered)
+	    - draw_debug_info(shader_program_uniforms, font, clock, server_clock, player)
+	    - draw_image_cover(shader_program_uniforms, texture, image_size, screen_size, scale, uv_offset, uv_skew, transparency)
+    }
+    RigidBody <|-- Entity
+    Entity <|-- Particle
+    Particle <|-- TileBreakParticle
+    Entity <|-- LivingEntity
+    Entity <|-- ItemStackEntity
+    LivingEntity <|-- Player
+    RigidBody <|-- Tile
+    ItemStack --> Item : wrapping certain amount of
+    ItemStackEntity --> ItemStack : represents in the environment
+    LivingEntity --> Inventory : has
+    Inventory --> ItemStack : manages list of
+    World --> MapManager : creates and owns
+    World --> Environment : creates and owns
+    MapManager --> World : reference
+    MapManager --> Tile : creates and manages
+    MapManager --> Environment : uses for particle spawning
+    Environment --> Entity : manages list of
+    RigidBody --> Vec2 : uses for positions
+    MapManager --> Item : wraps in ItemStack
+    MapManager --> ItemStack : for spawning
+    Tile --> TileBreakParticle : spawn after deleting
+    Client --> World : manages
+    Client --> Renderer : uses to render world

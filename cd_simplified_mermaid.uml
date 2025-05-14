@@ -1,0 +1,68 @@
+---
+config:
+  look: classic
+  layout: dagre
+  theme: redux
+  class:
+    hideEmptyMembersBox: true
+---
+classDiagram
+direction TB
+    class RigidBody {
+    }
+    class Entity {
+    }
+    class Particle {
+    }
+    class TileBreakParticle {
+    }
+    class LivingEntity {
+    }
+    class Inventory {
+    }
+    class Item {
+    }
+    class ItemStack {
+    }
+    class ItemStackEntity {
+    }
+    class Player {
+    }
+    class Tile {
+    }
+    class World {
+    }
+    class MapManager {
+    }
+    class Environment {
+    }
+    class Vec2 {
+    }
+    class Client {
+    }
+    class Renderer {
+    }
+
+    RigidBody <|-- Entity
+    Entity <|-- Particle
+    Particle <|-- TileBreakParticle
+    Entity <|-- LivingEntity
+    Entity <|-- ItemStackEntity
+    LivingEntity <|-- Player
+    RigidBody <|-- Tile
+    ItemStack --> Item : wrapping certain amount of
+    ItemStackEntity --> ItemStack : represents in the environment
+    LivingEntity --> Inventory : has
+    Inventory --> ItemStack : manages list of
+    World --> MapManager : creates and owns
+    World --> Environment : creates and owns
+    MapManager --> World : reference
+    MapManager --> Tile : creates and manages
+    MapManager --> Environment : uses for particle spawning
+    Environment --> Entity : manages list of
+    RigidBody --> Vec2 : uses for positions
+    MapManager --> Item : wraps in ItemStack
+    MapManager --> ItemStack : for spawning
+    Tile --> TileBreakParticle : spawn after deleting
+    Client --> World : manages
+    Client --> Renderer : uses to render world
