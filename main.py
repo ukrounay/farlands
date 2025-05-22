@@ -6,6 +6,7 @@ import pygame.time
 from src.client.client import Client
 # modules
 from src.client.renderer import *
+from src.client.screens import ProgressBar
 from src.shared.physics.objects import *
 
 
@@ -55,7 +56,7 @@ glEnable(GL_TEXTURE_2D)
 glDisable(GL_MULTISAMPLE)
 
 
-client = Client()
+client = Client(font)
 
 # !!!!!
 # threading
@@ -71,6 +72,7 @@ def game_logic_thread(running, client: Client):
         mouse_clicked = False
         client.mouse_pos.x, client.mouse_pos.y = pygame.mouse.get_pos()
         m_l, m_m, m_r = pygame.mouse.get_pressed()
+        screen_size = Vec2(client.screenWidth, client.screenHeight)
 
         if not client.is_initialized:
             continue
@@ -79,7 +81,13 @@ def game_logic_thread(running, client: Client):
             client.input_flags["scroll_d"] = 0
 
         if client.input_flags["mouse_clicked"]:
-            client.player.set_text_bubble("ihfbifsdjfb")
+            client.player.set_text_bubble("wow")
+            if client.world is not None:
+                client.camera.shake(0.2, 5)
+                pos = (client.camera.get_offset() + screen_size - client.mouse_pos)/TILE_SIZE
+                client.world.environment.add_body(PlayerNPC(pos.x, pos.y,12, 29,
+                             client.textures["entities"]['player'][0], 50))
+            # client.player.damage(1)
             mouse_clicked = True
             client.input_flags["mouse_clicked"] = False
 
@@ -141,9 +149,11 @@ def game_logic_thread(running, client: Client):
             pass
 
         if not client.player in client.world.environment.bodies and client.world.environment.time_running > 1:
-            client.world.environment.add_body(client.player)
+            # player is missing, either dead or not onotoalized yet
+            if client.player.is_alive:
+                client.world.environment.add_body(client.player)
 
-        spawn_pos = client.mouse_pos - client.camera.offset
+        spawn_pos = client.mouse_pos - client.camera.get_offset()
         p = spawn_pos / TILE_SIZE / client.camera.get_scale()
         world_mouse_pos = Vec2i(math.floor(p.x), math.floor(p.y))
 
@@ -179,7 +189,7 @@ def game_logic_thread(running, client: Client):
         #     play_sound(random.choice(biome_background_music))
 
         for layer in sorted(client.background_layers, key=lambda l: l.layer):
-            layer.scroll(client.camera.offset.x, screen_size.x, server_dt)
+            layer.scroll(client.camera.get_offset().x, screen_size.x, server_dt)
 
         pass
 
@@ -353,60 +363,63 @@ while server_running or running:
     # if not pygame.display.get_active(): continue
 
     if client.world is None:
-
         client.screens["main_menu"].draw(client.renderer, client.camera, client.mouse_pos)
         draw_cursor()
         pygame.display.flip()
         continue
 
     if client.is_loading:
-        client.renderer.draw_image_cover(client.renderer.default_shader_uniforms, backup_bg[0], Vec2(backup_bg[1], backup_bg[2]), screen_size, client.camera.scale)
-        client.renderer.draw_quad(client.renderer.default_shader_uniforms, client.textures["ui"]["main_menu_title"][0], matrices["normal"],
-                  create_transformation_matrix(
-                      offset=Vec2(screen_size.x/2, screen_size.y*0.35),
-                      size=Vec2(
-                          client.textures["ui"]["main_menu_title"][1],
-                          client.textures["ui"]["main_menu_title"][2]
-                      ),
-                      scale=client.camera.get_scale()
-                  ))
+        client.screens["main_menu_loading"].draw(client.renderer, client.camera, client.mouse_pos)
+
+        # client.renderer.draw_image_cover(client.renderer.default_shader_uniforms, backup_bg[0], Vec2(backup_bg[1], backup_bg[2]), screen_size, client.camera.scale)
+        # client.renderer.draw_quad(client.renderer.default_shader_uniforms, client.textures["ui"]["main_menu_title"][0], matrices["normal"],
+        #           create_transformation_matrix(
+        #               offset=Vec2(screen_size.x/2, screen_size.y*0.35),
+        #               size=Vec2(
+        #                   client.textures["ui"]["main_menu_title"][1],
+        #                   client.textures["ui"]["main_menu_title"][2]
+        #               ),
+        #               scale=client.camera.get_scale()
+        #           ))
+        #
+        #
+        # client.renderer.draw_quad(client.renderer.default_shader_uniforms, client.textures["ui"]["loadbar_bg"][0], matrices["normal"],
+        #           create_transformation_matrix(
+        #               position=Vec2(0, client.textures["ui"]["main_menu_title"][2]),
+        #               offset=Vec2(screen_size.x/2, screen_size.y*0.7),
+        #               size=Vec2(
+        #                   client.textures["ui"]["loadbar_bg"][1],
+        #                   client.textures["ui"]["loadbar_bg"][2]
+        #               ),
+        #               scale=client.camera.get_scale()
+        #           ))
+        # progress = min(1, max(0, client.loaded))
+        # crop_matrix = create_transformation_matrix(size=Vec2(progress, 1))
+        #
+        # client.renderer.draw_quad(client.renderer.default_shader_uniforms, client.textures["ui"]["loadbar_fg"][0], crop_matrix,
+        #           create_transformation_matrix(
+        #               position=Vec2(client.textures["ui"]["loadbar_bg"][1]*(progress-1)*0.5, client.textures["ui"]["main_menu_title"][2]),
+        #               offset=Vec2(screen_size.x/2 , screen_size.y*0.7),
+        #               size=Vec2(
+        #                   client.textures["ui"]["loadbar_bg"][1]*progress,
+        #                   client.textures["ui"]["loadbar_bg"][2]
+        #               ),
+        #               scale=client.camera.get_scale()
+        #           ))
+        # text = f"{math.ceil(progress*100)}%"
+        # text_top = client.camera.get_scale()*(client.textures["ui"]["main_menu_title"][2])
+        # text_shadow_top = client.camera.get_scale()*(client.textures["ui"]["main_menu_title"][2] + 1)
+        #
+        # client.renderer.draw_text(client.renderer.default_shader_uniforms, screen_size.x/2+client.camera.get_scale(), screen_size.y*0.7 + text_shadow_top,
+        #           text, font,
+        #           (0,0,0,0),
+        #           centered=True)
+        # client.renderer.draw_text(client.renderer.default_shader_uniforms, screen_size.x/2, screen_size.y*0.7 + text_top,
+        #           text, font,
+        #           (255,255,255,255),
+        #           centered=True)
 
 
-        client.renderer.draw_quad(client.renderer.default_shader_uniforms, client.textures["ui"]["loadbar_bg"][0], matrices["normal"],
-                  create_transformation_matrix(
-                      position=Vec2(0, client.textures["ui"]["main_menu_title"][2]),
-                      offset=Vec2(screen_size.x/2, screen_size.y*0.7),
-                      size=Vec2(
-                          client.textures["ui"]["loadbar_bg"][1],
-                          client.textures["ui"]["loadbar_bg"][2]
-                      ),
-                      scale=client.camera.get_scale()
-                  ))
-        progress = min(1, max(0, client.loaded))
-        crop_matrix = create_transformation_matrix(size=Vec2(progress, 1))
-
-        client.renderer.draw_quad(client.renderer.default_shader_uniforms, client.textures["ui"]["loadbar_fg"][0], crop_matrix,
-                  create_transformation_matrix(
-                      position=Vec2(client.textures["ui"]["loadbar_bg"][1]*(progress-1)*0.5, client.textures["ui"]["main_menu_title"][2]),
-                      offset=Vec2(screen_size.x/2 , screen_size.y*0.7),
-                      size=Vec2(
-                          client.textures["ui"]["loadbar_bg"][1]*progress,
-                          client.textures["ui"]["loadbar_bg"][2]
-                      ),
-                      scale=client.camera.get_scale()
-                  ))
-        text = f"{math.ceil(progress*100)}%"
-        text_top = client.camera.get_scale()*(client.textures["ui"]["main_menu_title"][2])
-        text_shadow_top = client.camera.get_scale()*(client.textures["ui"]["main_menu_title"][2] + 1)
-
-        client.renderer.draw_text(client.renderer.default_shader_uniforms, screen_size.x/2+client.camera.get_scale(), screen_size.y*0.7 + text_shadow_top,
-                  text, font,
-                  (0,0,0,0),
-                  centered=True)
-        client.renderer.draw_text(client.renderer.default_shader_uniforms, screen_size.x/2, screen_size.y*0.7 + text_top,
-                  text, font,
-                  (255,255,255,255),
-                  centered=True)
         draw_cursor()
         pygame.display.flip()
         continue
@@ -429,7 +442,7 @@ while server_running or running:
 
 
 
-    world_offset = client.camera.offset / client.camera.get_scale()
+    world_offset = client.camera.get_offset() / client.camera.get_scale()
     start = (world_offset * -1) / TILE_SIZE
     end = (screen_size - world_offset) / TILE_SIZE
 
@@ -467,7 +480,7 @@ while server_running or running:
                                         texture = client.textures["tiles_irregular"][tile_type]
                                         render_start = p - Vec2((texture[1] - TILE_SIZE) / 2, texture[2] - TILE_SIZE)
                                         client.renderer.draw_quad(client.renderer.default_shader_uniforms, texture[0], matrices["normal"],
-                                                  create_transformation_matrix(render_start, Vec2(texture[1], texture[2]), client.camera.offset,
+                                                  create_transformation_matrix(render_start, Vec2(texture[1], texture[2]), client.camera.get_offset(),
                                                                                client.camera.get_scale()))
 
                         else:
@@ -475,7 +488,7 @@ while server_running or running:
                                 # if client.world.environment.check_collision(body, client.camera.renderBounds):
                                 client.renderer.draw_quad(client.renderer.default_shader_uniforms, client.textures["tiles"][tile_type][0],
                                         create_transformation_matrix(size=body.size/TILE_SIZE),
-                                          create_transformation_matrix(body.position, body.size, client.camera.offset,
+                                          create_transformation_matrix(body.position, body.size, client.camera.get_offset(),
                                                                        client.camera.get_scale()))
                 else:
                     client.world.map_manager.mark_chunk_dirty(x, y)
@@ -489,7 +502,7 @@ while server_running or running:
                     continue
 
                 scale = client.camera.get_scale()
-                offset = client.camera.offset
+                offset = client.camera.get_offset()
                 texture = body.texture
                 outline_color = [1.0, 1.0, 1.0, 0.5]
                 uv = body.get_uv()
@@ -545,7 +558,19 @@ while server_running or running:
                     # start = Vec2(x, y) if centered else Vec2(x, y) + size / 2
                     client.renderer.draw_quad(client.renderer.default_shader_uniforms, texture_id, matrices["normal"],
                               create_transformation_matrix(pos*scale, size,
-                                                           client.camera.offset - Vec2((size.x-body.size.x)/2, size.y + DEBUG_FONT_SIZE)))
+                                                           client.camera.get_offset() - Vec2((size.x-body.size.x)/2, size.y + DEBUG_FONT_SIZE)))
+
+
+                # draw item in hand
+
+                if isinstance(body, LivingEntity) or issubclass(type(body), LivingEntity):
+                    stack = body.inventory.get_current()
+                    if stack is not None:
+                        t = client.textures["tiles"][stack.item.tile_type]
+                        size = Vec2(t[1], t[2]) / (max(t[1], t[2]) / TILE_SIZE)
+                        rotation = (followed_body.position - client.mouse_pos).get_rotation_deg()
+                        client.renderer.draw_quad(client.renderer.default_shader_uniforms, t[0], matrices["normal"],
+                                                  create_transformation_matrix(pos, size, of, s))
 
                 # draw_text(client.renderer.default_shader_uniforms, quad_vao,
                 #           pos.x,
@@ -581,18 +606,22 @@ while server_running or running:
                 else: texture = client.textures["tiles"][obj.tile_type][0]
             if texture is not None:
                 client.renderer.draw_quad(client.renderer.outline_shader_uniforms, texture, obj.get_uv(),
-                          create_transformation_matrix(pos, size, client.camera.offset, client.camera.get_scale()))
+                          create_transformation_matrix(pos, size, client.camera.get_offset(), client.camera.get_scale()))
 
     glUseProgram(client.renderer.default_shader)
 
     glBindVertexArray(client.renderer.quad_vao)
 
-    if not client.is_debugging:
-        gap = 5
-        s = math.ceil(client.camera.get_scale() * 0.5)
+    s = math.ceil(client.camera.get_scale() * 0.5)
+
+    if client.is_debugging:
+        client.renderer.draw_debug_info(client.renderer.default_shader_uniforms, font, clock, client.server_clock, client.player)
+
+    else:
+        gap = UI_GAP
         i_t = client.textures["ui"]["inventory"]
         top = (i_t[2]/2+gap)*s
-        inv_of = Vec2((screen_size.x) / 2, top)
+        inv_of = Vec2(screen_size.x / 2, top)
         client.renderer.draw_quad(client.renderer.default_shader_uniforms, i_t[0], matrices["normal"],
                   create_transformation_matrix(Vec2(), Vec2(i_t[1], i_t[2]), inv_of, s))
         of = Vec2(
@@ -607,20 +636,51 @@ while server_running or running:
             focused = x==client.player.inventory.slot
             texture = client.textures["ui"]["inventory_slot_focused" if focused else "inventory_slot"]
             slot_size = Vec2(texture[1],texture[2])
+
             pos = Vec2((slot_size.x + gap) * x, 0)
             client.renderer.draw_quad(client.renderer.default_shader_uniforms, texture[0], matrices["normal"],
                       create_transformation_matrix(pos, slot_size, of, s), 0 if focused else 0.2)
             if stack is not None:
-                item_texture = client.textures["tiles"][stack.item.tile_type]
-                client.renderer.draw_quad(client.renderer.default_shader_uniforms, item_texture[0], matrices["normal"],
-                          create_transformation_matrix(pos, Vec2(item_texture[1],item_texture[2]), of, s))
+                t = client.textures["tiles"][stack.item.tile_type]
+                size = Vec2(t[1], t[2]) / (max(t[1], t[2]) / TILE_SIZE)
+                client.renderer.draw_quad(client.renderer.default_shader_uniforms, t[0], matrices["normal"],
+                          create_transformation_matrix(pos, size, of, s))
                 client.renderer.draw_text(client.renderer.default_shader_uniforms, pos.x*s + of.x + 1, pos.y*s + of.y + 1, str(stack.count), font, (0, 0, 0, 0))
                 client.renderer.draw_text(client.renderer.default_shader_uniforms, pos.x*s + of.x, pos.y*s + of.y, str(stack.count), font, (255, 255, 255, 255))
 
+        # draw ui
+
+        client.screens["main_menu_ui"].draw(client.renderer, client.camera, client.mouse_pos, True, s)
+
+        # health = client.player.health
+        # health_coef = client.player.health / client.player.max_health
+        # progress = min(1, max(0, health_coef))
+        # of = Vec2(s_t[2] + gap, (s_t[2] - DEBUG_FONT_SIZE)/2)
+        # crop_matrix = create_transformation_matrix(size=Vec2(progress, 1))
+        # client.renderer.draw_quad(client.renderer.default_shader_uniforms, s_t[0], matrices["normal"],
+        #           create_transformation_matrix(pos, Vec2(s_t[1], s_t[2]), Vec2(), s))
+        # client.renderer.draw_quad(client.renderer.default_shader_uniforms, s_t_h[0], crop_matrix,
+        #           create_transformation_matrix(pos, Vec2(s_t_h[1]*progress, s_t_h[2]), Vec2(s_t_h[1] * s * (0.5 * progress - 0.5),0), s))
+        # client.renderer.draw_text(client.renderer.default_shader_uniforms, (of.x + 1) * s, (of.y + 1) * s,
+        #                           str(health), font, (100, 100, 100, 100))
+        # client.renderer.draw_text(client.renderer.default_shader_uniforms, of.x * s, of.y * s,
+        #                           str(health), font, (255, 51, 0, 255))
+        # pb.draw(client.renderer, screen_size, s, centered=True)
+
+    if not client.player.is_alive:
+        # death menu
+
+        # death_message = "Not quite there."
+        # client.renderer.draw_text(client.renderer.default_shader_uniforms, screen_size.x/2+1, screen_size.y/2+1,
+        #                           death_message, font, (0,0,0,0), screen_size.x/DEBUG_FONT_SIZE)
+        # client.renderer.draw_text(client.renderer.default_shader_uniforms, screen_size.x/2, screen_size.y/2,
+        #                           death_message, font, (255, 255, 255, 255), screen_size.x/DEBUG_FONT_SIZE)
+
+        pass
+
+
     draw_cursor()
 
-    if client.is_debugging:
-        client.renderer.draw_debug_info(client.renderer.default_shader_uniforms, font, clock, client.server_clock, client.player)
 
 
 

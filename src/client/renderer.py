@@ -12,7 +12,8 @@ from src.shared.utilites import Vec2, matrices, create_transformation_matrix
 
 
 class Renderer:
-    def __init__(self):
+    def __init__(self, default_font):
+        self.default_font = default_font
         # Load Shaders
         self.default_shader = load_shader("default.vert", "default.frag")
         self.outline_shader = load_shader("outline.vert", "outline.frag")

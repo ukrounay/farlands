@@ -12,13 +12,13 @@ class World:
     def create_map(self, init_range, client):
         self.map_manager = MapManager(self)
         self.environment.map_manager = self.map_manager
-        d = (1 - client.loaded) / (init_range*init_range * 5)
+        d = (1 - client.loaded) / (init_range*init_range * 4)
         for cx in range(-init_range, init_range):
             for cy in range(-init_range, init_range):
                 self.map_manager.initialize_chunk(cx, cy)
                 client.loaded += d
-        for cx in range(-init_range + 1, init_range - 1):
-            for cy in range(-init_range + 1, init_range - 1):
+        for cx in range(1 - init_range, init_range - 1):
+            for cy in range(1 - init_range, init_range - 1):
                 self.map_manager.update_chunk(cx, cy)
                 client.loaded += d
 
@@ -214,10 +214,11 @@ class MapManager:
     import math
 
     def trace_ray(self, start, direction, max_steps=10):
-        """Trace a ray through a grid and return first tile and side hit.
+        """
+        Trace a ray through a grid and return first tile and side hit.
 
         direction should be normalized (unit vector).
-        Returns (tile, side, (tile_x, tile_y))
+        :returns (tile, side, (tile_x, tile_y))
         """
         tile, side_hit = None, None
 
@@ -452,7 +453,7 @@ class MapManager:
 # ENVIRONMENT
 # -------------------------------------------------------------------------------------------
 
-class Environment(pygame.sprite.Group):
+class Environment():
     def __init__(self, map_manager, day_period=1200):
         self.bodies = []
         self.light_sources = []

@@ -63,6 +63,13 @@ class Vec2:
         y_new = self.x * math.sin(theta) + self.y * math.cos(theta)
         return Vec2(x_new, y_new)
 
+    def get_rotation_deg(self):
+        angle_rad = math.atan2(self.y, self.x)  # Returns angle in radians
+        angle_deg = math.degrees(angle_rad)  # Convert to degrees
+        if angle_deg < 0:
+            angle_deg += 360  # Normalize to [0, 360)
+        return angle_deg
+
 
 class Vec2i:
     x: int

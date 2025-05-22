@@ -6,6 +6,7 @@
             "lea_walk.png"
         ],
         "npc": [
+            "lea.png",
             "lea_idle.png",
             "lea_walk.png"
         ]
@@ -26,7 +27,9 @@
         "loadbar_bg": "ui/loadbar_bg.png",
         "loadbar_fg": "ui/loadbar_fg.png",
         "health_info": "ui/health_info.png",
-        "healthbar": "ui/healthbar.png"
+        "healthbar": "ui/healthbar.png",
+        "stats_ui": "stats_ui.png",
+        "stats_ui_progress_bar": "stats_ui_progress_bar.png"
     },
     "tiles": {
         "ground": "ground.png",

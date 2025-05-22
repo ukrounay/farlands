@@ -12,7 +12,8 @@ from src.shared.textures import *
 class Client:
     player: Player | None
 
-    def __init__(self):
+    def __init__(self, default_font):
+        self.default_font = default_font
         self.screens = {}
         self.input_flags = {
             "scroll_d": 0,
@@ -42,10 +43,14 @@ class Client:
         self.is_initialized = False
         self.is_loading = False
         self.loaded = 0
-        self.renderer = Renderer()
+        self.renderer = Renderer(self.default_font)
         self.preferences = {
             "fullscreen": False
         }
+
+    def get_loaded(self):
+        return self.loaded
+
 
     def initialize(self):
         self.is_loading = True
@@ -57,28 +62,67 @@ class Client:
         # Load data from the JSON file
         self.textures, texture_dict = load_textures_from_json('assets/textures.json')
 
+        self.player = Player(0, 0,12, 29,
+                             self.textures["entities"]['player'][0], 50)
+
 
         self.screens["main_menu"] = Screen(
-            Image(0,0,
+            Image(0,0, Vec2(),
                 self.textures["ui"]["main_menu_bg"][1],
                 self.textures["ui"]["main_menu_bg"][2],
                 self.textures["ui"]["main_menu_bg"][0]
             ),
             [
-                Image(0.5, 0.35,
+                Image(0.5, 0.35, Vec2(),
                     self.textures["ui"]["main_menu_title"][1],
                     self.textures["ui"]["main_menu_title"][2],
                     self.textures["ui"]["main_menu_title"][0]
                 ),
             ],
             [
-                Button(0.5, 50.6,
+                Button(0.5, 50.6, Vec2(),
                     self.textures["ui"]["main_menu_play"][1],
                     self.textures["ui"]["main_menu_play"][2],
                     self.textures["ui"]["main_menu_play"][0],
                     ButtonForm.SQ45
                 ),
             ])
+
+        self.screens["main_menu_loading"] = Screen(
+            Image(0,0, Vec2(),
+                self.textures["ui"]["main_menu_bg"][1],
+                self.textures["ui"]["main_menu_bg"][2],
+                self.textures["ui"]["main_menu_bg"][0]
+            ),
+            [
+                Image(0.5, 0.35, Vec2(),
+                    self.textures["ui"]["main_menu_title"][1],
+                    self.textures["ui"]["main_menu_title"][2],
+                    self.textures["ui"]["main_menu_title"][0]
+                ),
+                ProgressBar(0.5, 0.7, Vec2(),
+                            self.textures["ui"]["loadbar_bg"][1],
+                            self.textures["ui"]["loadbar_bg"][2],
+                            self.textures["ui"]["loadbar_bg"][0],
+                            self.textures["ui"]["loadbar_fg"][0],
+                            self.get_loaded,1,
+                            percents=True)
+
+            ],
+            [])
+
+        s_t = self.textures["ui"]["stats_ui"]
+        s_t_h = self.textures["ui"]["stats_ui_progress_bar"]
+        pos = Vec2(int(s_t[1]/2 + UI_GAP), int(s_t[2]/2 + UI_GAP))
+
+        self.screens["main_menu_ui"] = Screen(
+            None,
+            [
+                ProgressBar(pos.x, pos.y, Vec2(),
+                            s_t[1], s_t[2], s_t[0], s_t_h[0],
+                            self.player.get_health, self.player.max_health)
+            ],
+            [])
 
         # self.tilemap = Tilemap(texture_dict)
         self.sounds = load_sounds_from_json('assets/sounds.json')
@@ -117,7 +161,6 @@ class Client:
 
 
 
-        self.player = Player(0, 0,12, 29, self.textures["entities"]['player'][0], 1, gravity_enabled=True)
 
 
         # Create map manager

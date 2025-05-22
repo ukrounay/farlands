@@ -233,6 +233,9 @@ class LivingEntity(Entity):
     #     if(self.is_jumping):
     #         self.state = PlayerState.JUMPING_RIGHT if self.direction == PlayerDirection.RIGHT else PlayerState.JUMPING_LEFT
 
+    def get_health(self):
+        return self.health
+
     def update_position(self, dt):
         if not self.is_immovable:
             velocity = self.get_velocity()
@@ -303,6 +306,8 @@ class LivingEntity(Entity):
             self.state = state
             self.animation_frame = 0
 
+    def interact(self, other) -> bool:
+        return isinstance(other, Entity) or issubclass(type(other), Entity)
 
 class Inventory:
     def __init__(self, size):
@@ -361,11 +366,11 @@ class ItemStackEntity(Entity):
             if other.stack.item.tile_type == self.stack.item.tile_type:
                 self.stack.count += other.stack.count
                 other.kill()
-            return True
+        return isinstance(other, Entity) or issubclass(type(other), Entity)
 
 
 class Player(LivingEntity):
-    def __init__(self, x, y, width, height, texture, mass, health=100, max_age=0, gravity_enabled=True, is_immovable=False, is_physical=True):
+    def __init__(self, x, y, width, height, texture, mass, health=16, max_age=0, gravity_enabled=True, is_immovable=False, is_physical=True):
         super().__init__(x, y, width, height, texture, mass, health, "player", max_age, gravity_enabled, is_immovable, is_physical)
 
 
@@ -373,7 +378,11 @@ class Player(LivingEntity):
         if isinstance(other, ItemStackEntity):
             if self.inventory.pick_item(other.stack):
                 other.kill()
-            return True
+        return super().interact(other)
+
+class PlayerNPC(LivingEntity):
+    def __init__(self, x, y, width, height, texture, mass, health=32, max_age=0, gravity_enabled=True, is_immovable=False, is_physical=True):
+        super().__init__(x, y, width, height, texture, mass, health, "npc", max_age, gravity_enabled, is_immovable, is_physical)
 
 
 
@@ -515,6 +524,68 @@ class FollowPoint(Enum):
     RIGHT = Vec2(0.4, 0.6)
 
 
+# class Camera:
+#     def __init__(self):
+#         self.offset = Vec2()
+#         self.scale = 1
+#         self.zoom = 1
+#         self.previous_follow_point = FollowPoint.CENTER
+#         self.follow_point = FollowPoint.CENTER
+#         self.follow_offset = Vec2()
+#         self.last_follow_point_change = 0
+#         self.renderBounds = pygame.Rect(0, 0, 0, 0)
+#         self.render_distance = 10
+#
+#     def update_bounds(self, screenWidth, screenHeight):
+#         self.renderBounds = pygame.Rect(0, 0, screenWidth, screenHeight)
+#         self.render_distance = max(screenWidth, screenHeight) // TILE_SIZE + 1
+#
+#     def set_follow_point(self, fp):
+#         self.previous_follow_point = self.follow_point
+#         self.follow_point = fp
+#         self.last_follow_point_change = 0
+#
+#     def follow(self, body, mouse_pos, dt):
+#         if body is None: return
+#         velocity = body.get_velocity()
+#         self.last_follow_point_change += dt
+#         is_le = isinstance(body, LivingEntity) or issubclass(type(body), LivingEntity)
+#         # next_follow_point = FollowPoint.CENTER
+#         # if self.last_follow_point_change > 0.8:
+#         #     if velocity.x > 0.1 or (is_le and body.is_traveling_right):
+#         #         next_follow_point = FollowPoint.RIGHT
+#         #     elif velocity.x < -0.1 or (is_le and body.is_traveling_left):
+#         #         next_follow_point = FollowPoint.LEFT
+#         #
+#         # if next_follow_point != self.follow_point:
+#         #     self.set_follow_point(next_follow_point)
+#
+#         fp_transition = 0.3
+#         transition_coef = 1-fp_transition / (fp_transition - self.last_follow_point_change)
+#         desired_follow_point = self.follow_point.value - (self.previous_follow_point.value - self.follow_point.value)*transition_coef
+#         follow_offset_diff = self.follow_offset - desired_follow_point
+#         # self.follow_offset -= follow_offset_diff * dt
+#
+#
+#         object_center = (body.position + body.size*0.5) * self.get_scale()
+#         screen_size = Vec2(self.renderBounds.width, self.renderBounds.height)
+#         screen_center = screen_size * (self.follow_point.value + self.follow_offset)
+#         follow_center = self.offset + object_center
+#
+#         diff = screen_center - follow_center
+#
+#         self.offset += diff
+#         self.offset = Vec2(round(self.offset.x), round(self.offset.y))
+#
+#     def get_scale(self):
+#         return self.scale * self.zoom
+
+
+
+import pygame
+import random
+import math
+
 class Camera:
     def __init__(self):
         self.offset = Vec2()
@@ -527,6 +598,13 @@ class Camera:
         self.renderBounds = pygame.Rect(0, 0, 0, 0)
         self.render_distance = 10
 
+        # Shake state
+        self.shake_time = 0.0
+        self.shake_duration = 0.0
+        self.shake_strength = 0.0
+        self.shake_offset = Vec2()
+        self._shake_seed = random.uniform(0, 1000)
+
     def update_bounds(self, screenWidth, screenHeight):
         self.renderBounds = pygame.Rect(0, 0, screenWidth, screenHeight)
         self.render_distance = max(screenWidth, screenHeight) // TILE_SIZE + 1
@@ -536,37 +614,59 @@ class Camera:
         self.follow_point = fp
         self.last_follow_point_change = 0
 
+    def shake(self, duration, strength):
+        self.shake_duration = duration
+        self.shake_time = duration
+        self.shake_strength = strength
+        self._shake_seed = random.uniform(0, 1000)
+
+    def _smooth_noise(self, t, offset):
+        # Простий псевдо-плавний шум (можна замінити на Perlin)
+        return math.sin(t * 10 + offset + self._shake_seed)
+
+    def update_shake(self, dt):
+        if self.shake_time > 0:
+            self.shake_time -= dt
+            t = (self.shake_duration - self.shake_time)
+            fade = self.shake_time / self.shake_duration
+
+            # Плавні осциляції, що затухають
+            angle = self._smooth_noise(t, 0) * math.pi * 2
+            x = math.cos(angle + self._smooth_noise(t, 100)) * fade * self.shake_strength
+            y = math.sin(angle + self._smooth_noise(t, 200)) * fade * self.shake_strength
+
+            self.shake_offset = Vec2(x, y)
+        else:
+            self.shake_offset = Vec2()
+
     def follow(self, body, mouse_pos, dt):
-        if body is None: return
+        self.update_shake(dt)
+
+        if body is None:
+            return
+
         velocity = body.get_velocity()
         self.last_follow_point_change += dt
+
         is_le = isinstance(body, LivingEntity) or issubclass(type(body), LivingEntity)
-        # next_follow_point = FollowPoint.CENTER
-        # if self.last_follow_point_change > 0.8:
-        #     if velocity.x > 0.1 or (is_le and body.is_traveling_right):
-        #         next_follow_point = FollowPoint.RIGHT
-        #     elif velocity.x < -0.1 or (is_le and body.is_traveling_left):
-        #         next_follow_point = FollowPoint.LEFT
-        #
-        # if next_follow_point != self.follow_point:
-        #     self.set_follow_point(next_follow_point)
 
         fp_transition = 0.3
-        transition_coef = 1-fp_transition / (fp_transition - self.last_follow_point_change)
-        desired_follow_point = self.follow_point.value - (self.previous_follow_point.value - self.follow_point.value)*transition_coef
+        transition_coef = 1 - fp_transition / (fp_transition - self.last_follow_point_change)
+        desired_follow_point = self.follow_point.value - (self.previous_follow_point.value - self.follow_point.value) * transition_coef
         follow_offset_diff = self.follow_offset - desired_follow_point
-        # self.follow_offset -= follow_offset_diff * dt
 
-
-        object_center = (body.position + body.size*0.5) * self.get_scale()
+        object_center = (body.position + body.size * 0.5) * self.get_scale()
         screen_size = Vec2(self.renderBounds.width, self.renderBounds.height)
         screen_center = screen_size * (self.follow_point.value + self.follow_offset)
         follow_center = self.offset + object_center
 
         diff = screen_center - follow_center
-
         self.offset += diff
         self.offset = Vec2(round(self.offset.x), round(self.offset.y))
 
     def get_scale(self):
         return self.scale * self.zoom
+
+    def get_offset(self):
+        # Кінцевий зсув камери з тряскою
+        return self.offset + self.shake_offset
