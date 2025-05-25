@@ -7,6 +7,7 @@ from src.client.client import Client
 # modules
 from src.client.renderer import *
 from src.client.screens import ProgressBar
+from src.shared.npc.npcs import PlayerNPC
 from src.shared.physics.objects import *
 
 
@@ -85,7 +86,7 @@ def game_logic_thread(running, client: Client):
             if client.world is not None:
                 client.camera.shake(0.2, 5)
                 pos = (client.camera.get_offset() + screen_size - client.mouse_pos)/TILE_SIZE
-                client.world.environment.add_body(PlayerNPC(pos.x, pos.y,12, 29,
+                client.world.environment.add_body(PlayerNPC(client.world, pos.x, pos.y,12, 29,
                              client.textures["entities"]['player'][0], 50))
             # client.player.damage(1)
             mouse_clicked = True
@@ -494,12 +495,19 @@ while server_running or running:
                     client.world.map_manager.mark_chunk_dirty(x, y)
 
         if layer == 0:
-            for body in client.world.environment.bodies:
+            def in_bounds(elem):
+                pos = elem.position
+                return abs(followed_body_pos.x - pos.x) < screen_size.x*0.55 \
+                        or abs(followed_body_pos.y - pos.y) < screen_size.y*0.55
+
+            for body in filter(in_bounds, client.world.environment.bodies):
+
                 pos = body.position
                 if body == followed_body:
                     pos = followed_body_pos
-                elif pos.distance_to(followed_body_pos) > max(screen_size.x, screen_size.y)/2:
-                    continue
+                # elif :
+                #     print("out of the screen, skip render")
+                #     continue
 
                 scale = client.camera.get_scale()
                 offset = client.camera.get_offset()
@@ -568,9 +576,25 @@ while server_running or running:
                     if stack is not None:
                         t = client.textures["tiles"][stack.item.tile_type]
                         size = Vec2(t[1], t[2]) / (max(t[1], t[2]) / TILE_SIZE)
-                        rotation = (followed_body.position - client.mouse_pos).get_rotation_deg()
+                        rotation = (followed_body.position*client.camera.get_scale() + client.camera.get_offset() - client.mouse_pos).get_rotation_deg()
+                        flip = False
+                        if rotation < -90 or rotation > 90:
+                            rotation += 180
+                            flip = True
                         client.renderer.draw_quad(client.renderer.default_shader_uniforms, t[0], matrices["normal"],
-                                                  create_transformation_matrix(pos, size, of, s))
+                                                  create_transformation_matrix(pos + Vec2(size.x*-0.5 if flip else size.x*0.5, size.y), size, offset, scale,
+                                                                               rotation=rotation, flip_x=flip, origin=Vec2(0.5, 0.5)))
+                if isinstance(body, PlayerNPC):
+                    poss = []
+                    if body.brain.target_pos is not None: poss += [body.brain.target_pos*TILE_SIZE]
+                    if body.brain.action is not None: poss += [Vec2(body.brain.action.jumps[f]*TILE_SIZE, body.position.y) for f in range(len(body.brain.action.jumps))]
+                    t = client.textures["ui"]["crosshair"]
+                    for pos in poss:
+                        client.renderer.draw_quad(client.renderer.default_shader_uniforms, t[0], matrices["normal"],
+                                                  create_transformation_matrix(
+                                                      pos, Vec2(4,4),
+                                                      offset, scale,
+                                                      origin=Vec2(0.5, 0.5)))
 
                 # draw_text(client.renderer.default_shader_uniforms, quad_vao,
                 #           pos.x,

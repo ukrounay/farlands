@@ -656,11 +656,11 @@ class Environment():
             else:
                 if y1 < y2:
                     normal = [0, 1]  # Зіткнення зверху (вказується бік ПЕРШОГО тіла)
-                    print("xdij bdfi jfd")
-                    if isinstance(body2, LivingEntity):
+                    # print("xdij bdfi jfd")
+                    if isinstance(body2, LivingEntity) or issubclass(type(body2), LivingEntity):
                         body2.is_grounded = True
                         body2.is_jumping = False
-                    if isinstance(body1, LivingEntity):
+                    if isinstance(body1, LivingEntity) or issubclass(type(body2), LivingEntity):
                         body1.is_grounded = True
                         body1.is_jumping = False
                 else:
@@ -717,11 +717,11 @@ class Environment():
             # print(penetration)
 
             if edge_normal == Vec2(0, -1):
-                print("xdij bdfi jfd")
-                if isinstance(body2, LivingEntity):
+                # print("xdij bdfi jfd")
+                if isinstance(body2, LivingEntity) or issubclass(type(body2), LivingEntity):
                     body2.is_grounded = True
                     body2.is_jumping = False
-                if isinstance(body1, LivingEntity):
+                if isinstance(body1, LivingEntity) or issubclass(type(body2), LivingEntity):
                     body1.is_grounded = True
                     body1.is_jumping = False
 

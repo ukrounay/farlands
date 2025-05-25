@@ -5,6 +5,7 @@ import pygame
 from enum import Enum
 
 from src.server.terrain import *
+from src.shared.npc.brains import NPCBrain
 from src.shared.utilites import *
 from src.shared.globals import *
 
@@ -152,6 +153,18 @@ class TileBreakParticle(Particle):
     def get_uv(self):
         return self.uv_offset
 
+
+class LivingEntityState(Enum):
+    FALLBACK = 0
+    IDLE = 1
+    WALKING = 2
+    RUNNING = 3
+    JUMPING = 4
+    CROUCHING = 5
+
+
+
+
 class LivingEntity(Entity):
     def __init__(self, x, y, width, height, texture, mass, health, entity_type="npc", max_age=0, gravity_enabled=True, is_immovable=False, is_physical=False, animation_frames=1):
         super().__init__(x, y, width/animation_frames, height, texture, mass, max_age, gravity_enabled, is_immovable, is_physical)
@@ -178,6 +191,7 @@ class LivingEntity(Entity):
         self.environment = None
         self.inventory = Inventory(size=9)
 
+
     def jump(self, dt):
         if not self.is_jumping and self.is_grounded:
             self.is_jumping = True
@@ -189,6 +203,11 @@ class LivingEntity(Entity):
 
     # def move(self, d):
     #     self.accelerate(d)
+
+    def move(self, direction: Direction):
+        self.is_traveling_left = direction is Direction.LEFT
+        self.is_traveling_right = direction is Direction.RIGHT
+        self.direction = direction
 
     def move_left(self, dt):
         # print(dt)
@@ -204,6 +223,12 @@ class LivingEntity(Entity):
         #     self.move(Vec2(self.movement_speed / (dt * dt), 0))
         self.is_traveling_right = True
         self.direction = Direction.RIGHT
+
+
+    def stop(self):
+        self.is_traveling_left = False
+        self.is_traveling_right = False
+
 
 
     # def update(self, dt):
@@ -249,11 +274,11 @@ class LivingEntity(Entity):
             if diff.y < -5 * TILE_SIZE: diff.y = -5 * TILE_SIZE
 
             self.position.y += diff.y
-
             if self.is_grounded:
                 if self.is_traveling_left:
                     self.position.x -= self.movement_speed * dt
                 if self.is_traveling_right:
+                    if type(self).__name__ == "PlayerNPC": print("npc walking to the right")
                     self.position.x += self.movement_speed * dt
             if not self.is_grounded:
                 movement_diff = self.movement_speed * dt * 0.5
@@ -308,6 +333,8 @@ class LivingEntity(Entity):
 
     def interact(self, other) -> bool:
         return isinstance(other, Entity) or issubclass(type(other), Entity)
+
+
 
 class Inventory:
     def __init__(self, size):
@@ -379,10 +406,6 @@ class Player(LivingEntity):
             if self.inventory.pick_item(other.stack):
                 other.kill()
         return super().interact(other)
-
-class PlayerNPC(LivingEntity):
-    def __init__(self, x, y, width, height, texture, mass, health=32, max_age=0, gravity_enabled=True, is_immovable=False, is_physical=True):
-        super().__init__(x, y, width, height, texture, mass, health, "npc", max_age, gravity_enabled, is_immovable, is_physical)
 
 
 
@@ -473,21 +496,7 @@ class Tile(RigidBody):
         pass
 
 
-def coord_round(value):
-    return math.floor(value) if value >= 0 else math.floor(value) - 1
 
-class LivingEntityState(Enum):
-    FALLBACK = 0
-    IDLE = 1
-    WALKING = 2
-    RUNNING = 3
-    JUMPING = 4
-    CROUCHING = 5
-
-
-class Direction(Enum):
-    RIGHT = 0
-    LEFT = 1
 
 # Background layer class
 class BackgroundLayer:

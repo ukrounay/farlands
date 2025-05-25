@@ -1,4 +1,5 @@
 import math
+from enum import Enum
 
 import numpy as np
 
@@ -64,10 +65,10 @@ class Vec2:
         return Vec2(x_new, y_new)
 
     def get_rotation_deg(self):
-        angle_rad = math.atan2(self.y, self.x)  # Returns angle in radians
-        angle_deg = math.degrees(angle_rad)  # Convert to degrees
-        if angle_deg < 0:
-            angle_deg += 360  # Normalize to [0, 360)
+        angle_rad = math.atan2(self.y, -self.x)
+        angle_deg = math.degrees(angle_rad)
+        # if angle_deg < 0:
+        #     angle_deg += 360
         return angle_deg
 
 
@@ -338,3 +339,17 @@ matrices = {
         [0, 0, 0, 1]
     ]
 }
+
+
+class Direction(Enum):
+    RIGHT = 1
+    LEFT = -1
+
+
+def coord_round(value):
+    return math.floor(value) if value >= 0 else math.floor(value) - 1
+
+
+def pos_world_to_map(pos):
+    pos = pos / TILE_SIZE
+    return Vec2(coord_round(pos.x), coord_round(pos.y))
