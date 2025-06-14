@@ -12,9 +12,9 @@ class Action:
         pass
 
 class WalkAction(Action):
-    def __init__(self, jumps: list, dest: int, direction: Direction):
+    def __init__(self, jumps: list, dest: int, direction: DirectionX):
         super().__init__()
-        reverse = direction == Direction.LEFT
+        reverse = direction == DirectionX.LEFT
         self.jumps = sorted(jumps, reverse=reverse)
         self.dest = dest
         self.direction = direction
@@ -40,23 +40,23 @@ class WalkAction(Action):
     def do(self, walker, min_range, dt):
         dir_sign = self.direction.value  # -1 for LEFT, 1 for RIGHT
 
-        target_x = TILE_SIZE * (self.dest + 0.5)
+        target_x = TILE_SIZE * self.dest
         walker_x = walker.position.x
-
-        if abs(walker_x - target_x) > min_range:
-            walker.move(self.direction)
-            # print("move")
-        else:
-            walker.stop()
-            self.done = True
 
         for i, jump_point in enumerate(self.jumps):
             jump_x = TILE_SIZE * jump_point
-            if (jump_x - walker_x) * dir_sign > 0.5*TILE_SIZE:
+
+            if (jump_x - walker_x) * dir_sign < 0:
+                self.jumps.pop(i)
+            elif abs(jump_x - walker_x) < TILE_SIZE+walker.size.x:
                 walker.jump(dt)
                 break
-            elif (jump_x - walker_x) * dir_sign < 0:
-                self.jumps.pop(i)
+
+        if abs(walker_x - target_x) > min_range:
+            walker.move(self.direction)
+        else:
+            walker.stop()
+            self.done = True
 
 
         # for i in range(len(self.jumps)):
@@ -121,6 +121,6 @@ class NPCBrain:
                         last_height = y
                         break
                 if not can_go: break
-            self.action = WalkAction(jumps, dest, Direction(direction))
+            self.action = WalkAction(jumps, dest, DirectionX(direction))
             return
         self.action = None

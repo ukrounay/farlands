@@ -57,14 +57,14 @@ def generate_platforms(seed=1, terrain_delta=20, terrain_quality=5, offset=Vec2(
                 heightmap[y, x] = tile_type_codes["air"]
             else:
                 stone = "cave_stone" if cave else "stone"
-                stone = "cave_stone" if cave else "stone"
-                stone = "cave_stone" if cave else "stone"
+                grass_dirt = "cave_grass_dirt" if cave else "grass_dirt"
+                dirt = "cave_dirt" if cave else "dirt"
                 if abs(y + offset.y - heightline[x]) > terrain_delta:
                     heightmap[y, x] = tile_type_codes[stone]
                 else:
                     if (upperline[x] if y==0 else heightmap[y-1, x]) == tile_type_codes["air"]:
-                        heightmap[y, x] = tile_type_codes["grass_dirt"]
-                    else: heightmap[y, x] = tile_type_codes["dirt"]
+                        heightmap[y, x] = tile_type_codes[grass_dirt]
+                    else: heightmap[y, x] = tile_type_codes[dirt]
 
     # Normalize the heightmap to the range [0, 255] for image saving
 

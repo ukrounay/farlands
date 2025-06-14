@@ -1,0 +1,33 @@
+---
+config:
+  layout: dagre
+  theme: redux
+---
+classDiagram
+direction TB
+    class World {
+        Контролер ігрового світу
+    }
+    class MapManager {
+        Контролер плиток, з яких складається мапа світу
+    }
+    class Environment {
+        Контролер фізичного середовища
+    }
+    class Player {
+        Гравець
+    }
+    class Client {
+        Клієнтна частина гри
+    }
+    class Renderer {
+        Контролер відмальовки
+    }
+
+    World --> MapManager : створює
+    World --> Environment : створює та керує
+    Environment --> MapManager : керує
+    Environment --> Player : містить
+    Client --> World : керує
+    Client --> Renderer : використовує
+    Client --> Player : створює та керує

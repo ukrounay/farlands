@@ -1,6 +1,7 @@
 from collections import defaultdict
 from operator import contains
 
+from src.server.terrain import *
 from src.shared.physics.objects import *
 
 class World:
@@ -17,15 +18,25 @@ class World:
             for cy in range(-init_range, init_range):
                 self.map_manager.initialize_chunk(cx, cy)
                 client.loaded += d
-        for cx in range(1 - init_range, init_range - 1):
-            for cy in range(1 - init_range, init_range - 1):
-                self.map_manager.update_chunk(cx, cy)
-                client.loaded += d
+        # for cx in range(1 - init_range, init_range - 1):
+        #     for cy in range(1 - init_range, init_range - 1):
+        #         self.map_manager.update_chunk(cx, cy)
+        #         client.loaded += d
 
 
 # -------------------------------------------------------------------------------------------
 # MAP
 # -------------------------------------------------------------------------------------------
+
+
+class TileTypeGroups:
+    TRANSPARENT = [
+        "grass",
+        "grass_high",
+        "grass_water",
+        "mushroom",
+        "tree"
+    ]
 
 
 class MapManager:
@@ -38,26 +49,27 @@ class MapManager:
         self.bg_map = {}
         self.fg_map = {}
         self.render_meshes = [{},{},{}]
-        self.chunk_vaos = {}
+        self.physical_meshes = {}
         self.dirty_chunks = set()
         self.world = world
         # for cx in range(-4, 4):
         #     for cy in range(-4, 4):
         #         self.initialize_chunk(cx, cy)
 
-    def update(self, cx, cy, sim_range, max_chunks_number=3):
-        # makes infinite loop
-        # while self.dirty_chunks:  # Continue until all dirty chunks are processed
-        #     key = self.dirty_chunks.pop()  # Remove one chunk from the set/dict
-        #     self.update_chunk(*key)  # Process it
+    def update(self, cx, cy, sim_range, max_chunks_number=4):
         updated = 0
+
         for x in range(cx - sim_range, cx + sim_range):
             for y in range(cy - sim_range, cy + sim_range):
                 if (x, y) in self.dirty_chunks:
                     self.update_chunk(x, y)
                     self.dirty_chunks.remove((x, y))
                     updated += 1
-                    if updated >= max_chunks_number: return
+                    if updated >= max_chunks_number:
+                        print("Update stopped.", self.dirty_chunks)
+                        return
+        if updated > 0:
+            print("update finished", self.dirty_chunks)
 
     def initialize_chunk(self, cx, cy):
         # Initialize map with chunks of tiles
@@ -84,14 +96,14 @@ class MapManager:
                     #     self.map[(cx, cy)][x][y] = Tile(global_x + x, global_y + y, t, require_support=True)
                     else: self.map[(cx, cy)][x][y] = Tile(global_x + x, global_y + y, t)
 
-        self.place_plants(global_x, global_y)
-
         self.mark_chunk_dirty(cx, cy)
 
-    def place_plants(self, global_x, global_y):
+    def place_plants(self, cx, cy):
+        global_x, global_y = cx * self.chunk_size, cy * self.chunk_size
+        if (cx, cy) in self.is_plants_planted and self.is_plants_planted[(cx, cy)] == True:
+            print("plants was already placed")
 
-        cx, cy, _, _ = self.get_local_coords(global_x, global_y)
-        if (cx, cy) in self.is_plants_planted: return
+            return
 
         for x in range(self.chunk_size):
             for y in range(self.chunk_size):
@@ -108,15 +120,16 @@ class MapManager:
                     if tile_above is None:
                         can_place_tree = True
                         decoration_tile_type = "grass_high"
+                        print("placing plant on ", grass_tile.tile_pos)
 
-                        for yy in range(0, -20):
+                        for yy in range(-1, -20, -1):
                             tile_higher = self.get_tile(global_x + x, global_y + y + yy)
                             if tile_higher is not None and tile_higher.is_physical:
                                 can_place_tree = False
                                 print("tree can't be placed")
 
                                 break
-                        r = random.uniform(0, 1)
+                        r = random.random()
                         if r > 0.7: decoration_tile_type = "grass_water"
                         if r > 0.8 and can_place_tree: decoration_tile_type = "tree"
                         if r > 0.9 and can_place_tree: decoration_tile_type = "mushroom"
@@ -125,7 +138,7 @@ class MapManager:
                             self.get_chunk(cx, cy - 1)
                         match decoration_tile_type:
                             case "tree" | "mushroom":
-                                r = random.uniform(0, 1)
+                                r = random.random()
                                 if r > 0.5:
                                     self.bg_map[(cx, cy)][x][y - 1] = Tile(global_x + x, global_y + y - 1,
                                                                            decoration_tile_type, False, require_support=True)
@@ -138,13 +151,13 @@ class MapManager:
                                 self.fg_map[(cx, cy)][x][y - 1] = Tile(global_x + x, global_y + y - 1,
                                                                        "grass", False, require_support=True)
 
+
         self.is_plants_planted[(cx,cy)] = True
         
         
         
     def mark_chunk_dirty(self, cx, cy):
-        if not (cx, cy) in self.dirty_chunks:
-            self.dirty_chunks.add((cx, cy))
+        self.dirty_chunks.add((cx, cy))
 
     def get_local_coords(self, global_x, global_y):
         """Correct chunk calculation for negative coordinates"""
@@ -210,8 +223,6 @@ class MapManager:
             return tile
 
         return None
-
-    import math
 
     def trace_ray(self, start, direction, max_steps=10):
         """
@@ -391,10 +402,15 @@ class MapManager:
     def update_chunk(self, cx, cy):
         """Update all tiles in the chunk and create merged render meshes"""
         print(f"Updating chunk: ({cx}, {cy})")
-        for layer in range (-1, 2):
-            chunk = self.get_chunk(cx, cy, layer)
 
+        self.place_plants(cx, cy)
+
+        will_not_be_visible = set()
+
+        for layer in range(1, -2, -1):
+            chunk = self.get_chunk(cx, cy, layer)
             visited = set()
+
             meshes = defaultdict(list)
 
             for lx in range(0, self.chunk_size):
@@ -406,14 +422,23 @@ class MapManager:
                     if tile is None:
                         continue
 
+
+                    tile_visibility = (lx, ly) in will_not_be_visible
+
+                    if tile_visibility and layer != 0:
+                        continue
+
                     tile_type = tile.tile_type
-                    global_x, global_y = cx * self.chunk_size + lx, cy * self.chunk_size + ly
+                    # global_x, global_y = cx * self.chunk_size + lx, cy * self.chunk_size + ly
 
                     # --- Find max width ---
                     width = 0
                     while lx + width < self.chunk_size:
                         t = chunk[lx + width][ly]
-                        if (lx + width, ly) in visited or t is None or t.tile_type != tile_type:
+                        if ((lx + width, ly) in visited
+                                or t is None
+                                or t.tile_type != tile_type
+                                or (tile_visibility == (lx + width, ly) in will_not_be_visible)):
                             break
                         width += 1
 
@@ -423,7 +448,10 @@ class MapManager:
                         valid_row = True
                         for dx in range(width):
                             t = chunk[lx + dx][ly + height]
-                            if (lx + dx, ly + height) in visited or t is None or t.tile_type != tile_type:
+                            if ((lx + dx, ly + height) in visited
+                                    or t is None
+                                    or t.tile_type != tile_type)\
+                                    or (tile_visibility == (lx + width, ly) in will_not_be_visible):
                                 valid_row = False
                                 break
                         if not valid_row:
@@ -434,6 +462,8 @@ class MapManager:
                     for dy in range(height):
                         for dx in range(width):
                             visited.add((lx + dx, ly + dy))
+                            if not tile.tile_type in TileTypeGroups.TRANSPARENT:
+                                will_not_be_visible.add((lx, ly))
 
                     # --- Add to render mesh ---
                     rect_x = tile.position.x
@@ -443,10 +473,18 @@ class MapManager:
 
                     rb = RigidBody(rect_x, rect_y, rect_w, rect_h, None, 0, False, True, True)
 
-                    if not tile_type in meshes:
-                        meshes[tile_type] = []
-                    meshes[tile_type].append(rb)
+                    if layer == 0:
+                        if not (cx, cy) in self.physical_meshes:
+                            self.physical_meshes[(cx, cy)] = []
+                        self.physical_meshes[(cx, cy)].append(rb)
+
+                    if not tile_visibility:
+                        if not tile_type in meshes:
+                            meshes[tile_type] = []
+                        meshes[tile_type].append(rb)
+
             self.render_meshes[layer][(cx, cy)] = meshes
+
 
 
 # -------------------------------------------------------------------------------------------
@@ -464,9 +502,8 @@ class Environment():
 
     def add_body(self, body: Entity):
         self.bodies.append(body)
-        if isinstance(body, Player): self.light_sources.append(body)
+        body.on_spawn()
         body.environment = self
-        # self.add(body)
 
     def apply_gravity(self):
         for body in self.bodies:
@@ -474,10 +511,7 @@ class Environment():
 
     def solve_collisions(self, dt):
         for i in range(len(self.bodies)):
-
             body = self.bodies[i]
-
-
 
             for j in range(i + 1, len(self.bodies)):
                 self.resolve_collision(body, self.bodies[j], dt)
@@ -489,16 +523,16 @@ class Environment():
 
             start = body.position.copy()
             destination = body.position + body.size
-            velocity = body.get_velocity()
+            diff = body.get_next_movement_diff(dt)
 
-            if velocity.x > 0:
-                start.x -= velocity.x
+            if diff.x > 0:
+                start.x -= diff.x
             else:
-                destination.x -= velocity.x
-            if velocity.y > 0:
-                start.y -= velocity.y
+                destination.x -= diff.x
+            if diff.y > 0:
+                start.y -= diff.y
             else:
-                destination.y -= velocity.y
+                destination.y -= diff.y
 
             start_i = Vec2i.from_vec2(start / TILE_SIZE) - 3
             destination_i = Vec2i.from_vec2(destination / TILE_SIZE) + 3
@@ -529,14 +563,11 @@ class Environment():
 
             for x in range(scx, ecx):
                 for y in range(scy, ecy):
-                    # print(f"checking chunk: {x} ; {y}")
-                    if not (x, y) in self.map_manager.render_meshes[0]:
-                        self.map_manager.update_chunk(x, y)
-                    # if (x, y) in self.map_manager.collision_map:
-                    for tile_type, meshes in self.map_manager.render_meshes[0][(x, y)].items():
-                        for collision_body in meshes:
-                            # print(f"collision resolving! {x} ; {y}")
-                            self.resolve_collision(self.bodies[i], collision_body, dt)
+                    # if not (x, y) in self.map_manager.physical_meshes:
+                    #     self.map_manager.update_chunk(x, y)
+                    if (x, y) in self.map_manager.physical_meshes:
+                        for collision_body in self.map_manager.physical_meshes[(x, y)]:
+                            self.resolve_collision(body, collision_body, dt)
 
     def update_positions(self, dt):
         for body in self.bodies:
@@ -614,11 +645,12 @@ class Environment():
     # -----------------------------
     # Функція для обробки колізій
     # -----------------------------
-    def resolve_collision(self, body1, body2, dt, vector_method=True):
-        collision, is_body1_inside, is_body2_inside = self.check_collision(body1, body2)
-        if collision:
+    def resolve_collision(self, body1, body2, dt):
+        collision, is_body1_inside, is_body2_inside = self.check_collision(body1, body2, False)
+        if collision or is_body1_inside or is_body2_inside:
 
-            if body1.interact(body2): return
+            if body1.interact(body2, is_body1_inside, is_body2_inside) or \
+                    body2.interact(body1, is_body2_inside, is_body1_inside): return
 
             if body1.is_immovable and body2.is_immovable: return
 

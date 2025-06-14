@@ -11,8 +11,12 @@
             "lea_walk.png"
         ]
     },
+    "projectiles": {
+        "bullet": "bullet.png"
+    },
     "player": "player.png",
     "ui": {
+        "cursor": "ui/cursor.png",
         "crosshair": "ui/crosshair.png",
         "slot": "ui/slot.png",
         "slot_focused": "ui/slot_focused.png",
@@ -30,6 +34,11 @@
         "healthbar": "ui/healthbar.png",
         "stats_ui": "stats_ui.png",
         "stats_ui_progress_bar": "stats_ui_progress_bar.png"
+    },
+    "bin": {
+        "cave_dirt": "test_red.png",
+        "cave_grass_dirt": "test_blue.png",
+        "cave_stone": "test_blue.png"
     },
     "tiles": {
         "ground": "ground.png",

@@ -2,20 +2,37 @@ import re
 import subprocess
 import sys
 
+import pygame
+
 from src.client.renderer import *
 from src.client.screens import *
 from src.shared.physics.objects import *
 from src.shared.sounds import load_sounds_from_json
 from src.shared.textures import *
+from src.shared.world import World
 
 
 class Client:
     player: Player | None
+    world: World | None
+    server_clock: pygame.time.Clock | None
+    screen: pygame.Surface | None
+    camera: Camera
+    renderer: Renderer
+    screens: dict
+    preferences: dict
+    input_flags: dict
+    mouse_pos: Vec2
+    is_debugging: bool
+    is_initialized: bool
+    is_loading: bool
+    loaded: float
 
     def __init__(self, default_font):
         self.default_font = default_font
         self.screens = {}
         self.input_flags = {
+            "key_pressed": False,
             "scroll_d": 0,
             "mouse_clicked": False,
         }
@@ -38,7 +55,6 @@ class Client:
         self.sounds = None
         self.currently_playing = {}
         self.textures = None
-        self.tilemap = None
         self.is_debugging = False
         self.is_initialized = False
         self.is_loading = False
@@ -284,8 +300,6 @@ class Client:
         # display_info = pygame.display.Info()
         # desktop_size = (display_info.current_w, display_info.current_h)
 
-
-
         if self.preferences['fullscreen']:
             self.screen = pygame.display.set_mode((0,0), DOUBLEBUF | OPENGL | FULLSCREEN)
             # self.move_window(0,0)
@@ -344,7 +358,8 @@ class Client:
         glDisable(GL_MULTISAMPLE)
 
     def update(self, dt):
-        cx, cy, lx, ly = self.world.map_manager.get_local_coords(self.player.position.x / TILE_SIZE, self.player.position.y / TILE_SIZE)
+        p = pos_world_to_map(self.player.position)
+        cx, cy, lx, ly = self.world.map_manager.get_local_coords(p.x, p.y)
         # sim_range = math.ceil(max(screenWidth, screenHeight)/2/TILE_SIZE/self.map_manager.chunk_size) + 1
         self.world.environment.update(dt, cx, cy, 3, self.camera)
 

@@ -107,31 +107,15 @@ class Renderer:
         Draw a textured quad with the specified transformation
             :param u_loc: current OpenGL shader program uniforms locations
             :param texture: OpenGL texture ID
-            :param uv_transform: 3x3 matrix for UV transformation
+            :param uv_transform: 4x4 matrix for UV transformation
             :param model_matrix: 4x4 model transformation matrix
             :param transparency: from 0 = fully opaque, to 1 = fully transparent
         """
-
-        # Bind texture
         glBindTexture(GL_TEXTURE_2D, texture)
-
-        # # Set texture uniform
-        # texture_loc = glGetUniformLocation(shader_program, "ourTexture")
-        # glUniform1i(texture_loc, 0)
-
-        # Set UV transformation uniform
-        uv_matrix = np.array(uv_transform, dtype=np.float32)
-        glUniformMatrix4fv(u_loc["uvTransform"], 1, GL_FALSE, uv_matrix)
-
-        # Set model matrix uniform
+        glUniformMatrix4fv(u_loc["uvTransform"], 1, GL_FALSE, uv_transform)
         glUniformMatrix4fv(u_loc["modelMatrix"], 1, GL_FALSE, model_matrix)
-
         glUniform1f(u_loc["transparency"], transparency)
-
-        # Draw the quad
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
-
-        # print(model_matrix)
 
 
     def draw_text(self, shader_program_uniforms, x, y, text, font, color, font_size=DEBUG_FONT_SIZE, centered=False):

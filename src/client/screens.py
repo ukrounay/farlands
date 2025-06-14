@@ -75,7 +75,7 @@ class Button(Image):
                 and pos.y < mouse_pos.y < pos.y + size.y)
 
         if self.form == ButtonForm.SQ45:
-            print(mouse_pos, pos if centered else pos - size / 2, (size.x + size.y) / 2)
+            # print(mouse_pos, pos if centered else pos - size / 2, (size.x + size.y) / 2)
             return is_inside_rotated_square(mouse_pos, pos if centered else pos - size / 2, (size.x + size.y) / 2)
         return False
 

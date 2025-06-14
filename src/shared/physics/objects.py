@@ -1,15 +1,6 @@
-import math
-import random
-
-import pygame
-from enum import Enum
-
-from src.server.terrain import *
-from src.shared.npc.brains import NPCBrain
 from src.shared.utilites import *
 from src.shared.globals import *
-
-
+from src.shared.utilites import clamp, norm
 
 
 # -----------------------------
@@ -17,8 +8,10 @@ from src.shared.globals import *
 # -----------------------------
 
 
-class RigidBody(pygame.sprite.Sprite):
-
+class RigidBody:
+    """
+    Class for game objects that can be interpreted by physics engine as rigid bodies
+    """
     def __init__(self, x, y, width, height, texture, mass, gravity_enabled=True, is_immovable=False, is_physical=True):
         super().__init__()
         self.position = Vec2(x, y)
@@ -32,31 +25,35 @@ class RigidBody(pygame.sprite.Sprite):
         self.texture = texture
         self.rect = pygame.Rect(x, y, width, height)
 
-    def apply_gravity(self, gravity=GRAVITY*TILE_SIZE):
-        if self.gravity_enabled: 
-            self.accelerate(Vec2(0, gravity))
+
+    def get_gravity(self):
+        return GRAVITY
+
+    def apply_gravity(self):
+        if self.gravity_enabled:
+            self.accelerate(Vec2(0, self.get_gravity()))
 
     def accelerate(self, acc):
         self.acceleration += acc
         
-    def get_velocity(self):
+    def get_velocity(self, dt=0):
+        if dt is not 0:
+            return (self.position - self.position_old)/dt
         return self.position - self.position_old
+
+    def get_next_movement_diff(self, dt):
+        velocity = self.get_velocity()
+        diff = velocity + (self.acceleration * dt * dt) * 0.5
+        diff.x = clamp(diff.x, -5 * TILE_SIZE, 5 * TILE_SIZE)
+        diff.y = clamp(diff.y, -5 * TILE_SIZE, 5 * TILE_SIZE)
+        return diff
 
     def update_position(self, dt):
         if not self.is_immovable:
-            velocity = self.get_velocity()
+            diff = self.get_next_movement_diff(dt)
             self.position_old = self.position.copy()
-            diff = velocity + (self.acceleration * dt * dt)
-            # diff.x = diff.x % 10*TILE_SIZE 
-            # diff.y = diff.y % 10*TILE_SIZE 
-            if diff.x > 5*TILE_SIZE: diff.x = 5*TILE_SIZE
-            if diff.y > 5*TILE_SIZE: diff.y = 5*TILE_SIZE
-            if diff.x < -5*TILE_SIZE: diff.x = -5*TILE_SIZE
-            if diff.y < -5*TILE_SIZE: diff.y = -5*TILE_SIZE
-            
             self.position += diff
             self.acceleration = Vec2(0, 0)
-            # self.update_rect()
 
     # def update_rect(self):
     #     self.rect.x = self.position.x
@@ -83,7 +80,7 @@ class RigidBody(pygame.sprite.Sprite):
     def get_uv(self):
         return matrices["normal"]
 
-    def interact(self, other) -> bool:
+    def interact(self, other, is_body1_inside=False, is_body2_inside=False) -> bool:
         """
         :param other: other body this body interacting with
         :return: should skip physics for this interaction
@@ -91,6 +88,9 @@ class RigidBody(pygame.sprite.Sprite):
         return False
 
 class Entity(RigidBody):
+    """
+    Game object with a lifespan
+    """
     def __init__(self, x, y, width, height, texture, mass, max_age=0, gravity_enabled=True, is_immovable=False, is_physical=True):
         super().__init__(x, y, width, height, texture, mass, gravity_enabled, is_immovable, is_physical)
         self.age = 0
@@ -129,6 +129,9 @@ class Entity(RigidBody):
     def on_kill(self):
         pass
 
+    def on_spawn(self):
+        pass
+
 class Particle(Entity):
     def __init__(self, x, y, width, height, texture, direction=Vec2(), max_age=1, gravity_enabled=True, is_immovable=False, is_physical=False):
         super().__init__(x, y, width, height, texture, 0, max_age, gravity_enabled, is_immovable, is_physical)
@@ -138,7 +141,7 @@ class Particle(Entity):
         t = self.age / self.max_age
         return t*t
 
-    def interact(self, other):
+    def interact(self, other, is_body1_inside=False, is_body2_inside=False):
         return True # should skip collision
 
 class TileBreakParticle(Particle):
@@ -163,11 +166,16 @@ class LivingEntityState(Enum):
     CROUCHING = 5
 
 
-
-
 class LivingEntity(Entity):
+    """
+    Game object that represents living creatures and provide interface to control its movement.
+
+    *Supports animations*
+    """
     def __init__(self, x, y, width, height, texture, mass, health, entity_type="npc", max_age=0, gravity_enabled=True, is_immovable=False, is_physical=False, animation_frames=1):
         super().__init__(x, y, width/animation_frames, height, texture, mass, max_age, gravity_enabled, is_immovable, is_physical)
+        self.stunted_ticks = 0
+        self.is_stunted = False
         self.health = health
         self.max_health = health
         self.animation_frame = 0.0
@@ -182,47 +190,61 @@ class LivingEntity(Entity):
         self.is_grounded = False
         self.is_traveling_left = False
         self.is_traveling_right = False
-        self.jump_force = -1000*TILE_SIZE
-        self.jump_height = 1.2
+        # self.jump_force = -1000*TILE_SIZE
+        self.jump_height = 1.2*TILE_SIZE
         self.movement_speed = 5*TILE_SIZE
 
 
-        self.direction = Direction.RIGHT
+        self.direction = DirectionX.RIGHT
         self.environment = None
         self.inventory = Inventory(size=9)
 
+    def get_gravity(self, direction=DirectionY.UP):
+        gravity = GRAVITY
+        if direction == DirectionY.DOWN:
+            gravity *= 1.2
+        return gravity
+
+    def apply_gravity(self):
+        if self.gravity_enabled:
+            d = norm(self.get_velocity().y)
+            direction = DirectionY(d) if d is not 0 else DirectionY.UP
+            self.accelerate(Vec2(0, self.get_gravity(direction)))
 
     def jump(self, dt):
-        if not self.is_jumping and self.is_grounded:
+        if not self.is_stunted and not self.is_jumping and self.is_grounded:
             self.is_jumping = True
             # self.accelerate(vec2(0, -GRAVITY *2))
 
-            vel = math.sqrt(2 * self.jump_height * GRAVITY)*TILE_SIZE
+            vel = math.sqrt(self.jump_height * GRAVITY)
             self.position_old.y = self.position.y
             self.position.y -= vel * dt
 
     # def move(self, d):
     #     self.accelerate(d)
 
-    def move(self, direction: Direction):
-        self.is_traveling_left = direction is Direction.LEFT
-        self.is_traveling_right = direction is Direction.RIGHT
-        self.direction = direction
+    def move(self, direction: DirectionX):
+        if not self.is_stunted:
+            self.is_traveling_left = direction is DirectionX.LEFT
+            self.is_traveling_right = direction is DirectionX.RIGHT
+            self.direction = direction
 
     def move_left(self, dt):
         # print(dt)
         # if self.get_velocity().x > -self.movement_speed:
         #     self.move(Vec2(-self.movement_speed / (dt * dt), 0))
-        self.is_traveling_left = True
-        self.direction = Direction.LEFT
+        if not self.is_stunted:
+            self.is_traveling_left = True
+            self.direction = DirectionX.LEFT
 
 
     def move_right(self, dt):
         # print(dt)
         # if self.get_velocity().x < self.movement_speed:
         #     self.move(Vec2(self.movement_speed / (dt * dt), 0))
-        self.is_traveling_right = True
-        self.direction = Direction.RIGHT
+        if not self.is_stunted:
+            self.is_traveling_right = True
+            self.direction = DirectionX.RIGHT
 
 
     def stop(self):
@@ -238,7 +260,7 @@ class LivingEntity(Entity):
     #     super().tick(dt)
 
     def get_uv(self):
-        if self.direction == Direction.LEFT:
+        if self.direction == DirectionX.LEFT:
             return create_transformation_matrix(size=Vec2(1,1), flip_x=True)
         return matrices["normal"]
         #     return [
@@ -263,39 +285,42 @@ class LivingEntity(Entity):
 
     def update_position(self, dt):
         if not self.is_immovable:
-            velocity = self.get_velocity()
+            diff = self.get_next_movement_diff(dt)
             self.position_old = self.position.copy()
-            diff = velocity + (self.acceleration * dt * dt)
-            # diff.x = diff.x % 10*TILE_SIZE
-            # diff.y = diff.y % 10*TILE_SIZE
-            if diff.x > 5 * TILE_SIZE: diff.x = 5 * TILE_SIZE
-            if diff.y > 5 * TILE_SIZE: diff.y = 5 * TILE_SIZE
-            if diff.x < -5 * TILE_SIZE: diff.x = -5 * TILE_SIZE
-            if diff.y < -5 * TILE_SIZE: diff.y = -5 * TILE_SIZE
 
             self.position.y += diff.y
+
             if self.is_grounded:
-                if self.is_traveling_left:
-                    self.position.x -= self.movement_speed * dt
-                if self.is_traveling_right:
-                    if type(self).__name__ == "PlayerNPC": print("npc walking to the right")
-                    self.position.x += self.movement_speed * dt
+                if not (self.is_traveling_left or self.is_traveling_right):
+                    self.position.x += diff.x
+                else:
+                    if self.is_traveling_left:
+                        self.position.x -= self.movement_speed * dt
+                    if self.is_traveling_right:
+                        # if type(self).__name__ == "PlayerNPC": print("npc walking to the right")
+                        self.position.x += self.movement_speed * dt
             if not self.is_grounded:
-                movement_diff = self.movement_speed * dt * 0.5
-                if self.is_traveling_left:
-                    self.position.x -= movement_diff
-                    self.position_old.x -= movement_diff
-                    # diff.x = max(movement_diff, diff.x)
-                if self.is_traveling_right:
-                    self.position.x += movement_diff
-                    self.position_old.x += movement_diff
-                    # diff.x = min(movement_diff, diff.x)
-                self.position.x += diff.x
+                movement_diff = self.movement_speed * dt
+                if not (self.is_traveling_left or self.is_traveling_right):
+                    self.position.x += diff.x
+                else:
+                    if self.is_traveling_left:
+                        self.position.x -= movement_diff
+                        # self.position_old.x -= movement_diff
+                        # diff.x = max(movement_diff, diff.x)
+                    if self.is_traveling_right:
+                        self.position.x += movement_diff
+
+                        # self.position_old.x += movement_diff
+                        # diff.x = min(movement_diff, diff.x)
+
+
 
             # self.is_traveling_left = False
             # self.is_traveling_right = False
 
             self.acceleration = Vec2(0, 0)
+
 
     def damage(self, amount):
         self.health -= amount
@@ -308,6 +333,11 @@ class LivingEntity(Entity):
 
     def tick(self, dt):
         super().tick(dt)
+
+        if self.is_stunted:
+            self.stunted_ticks -= dt
+            if self.stunted_ticks <= 0: self.is_stunted = False
+
         self.animation_frame += self.animation_speed*dt
         if self.animation_frame >= self.animation_frames:
             self.animation_frame = 0
@@ -331,12 +361,22 @@ class LivingEntity(Entity):
             self.state = state
             self.animation_frame = 0
 
-    def interact(self, other) -> bool:
-        return isinstance(other, Entity) or issubclass(type(other), Entity)
+    def interact(self, other, is_body1_inside=False, is_body2_inside=False) -> bool:
+        return (isinstance(other, LivingEntity)
+                or issubclass(type(other), LivingEntity))
 
+    def stunt(self, stunted_ticks):
+        self.is_stunted = True
+        self.stunted_ticks = stunted_ticks
+        self.stop()
+        pass
 
 
 class Inventory:
+    """
+    Interface to manage a list of items
+    """
+
     def __init__(self, size):
         self.size = size
         self.items = [None for _ in range(size)]
@@ -388,7 +428,7 @@ class ItemStackEntity(Entity):
         super().__init__(x, y, width, height, texture, mass, max_age, gravity_enabled, is_immovable, is_physical)
         self.stack = stack
 
-    def interact(self, other):
+    def interact(self, other, is_body1_inside=False, is_body2_inside=False):
         if isinstance(other, ItemStackEntity):
             if other.stack.item.tile_type == self.stack.item.tile_type:
                 self.stack.count += other.stack.count
@@ -401,7 +441,7 @@ class Player(LivingEntity):
         super().__init__(x, y, width, height, texture, mass, health, "player", max_age, gravity_enabled, is_immovable, is_physical)
 
 
-    def interact(self, other):
+    def interact(self, other, is_body1_inside=False, is_body2_inside=False):
         if isinstance(other, ItemStackEntity):
             if self.inventory.pick_item(other.stack):
                 other.kill()

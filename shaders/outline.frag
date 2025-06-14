@@ -19,7 +19,6 @@ bool isInBounds(vec2 coords) {
 
 void main() {
     vec4 color = texture(ourTexture, vTexCoord);
-    color.a *= (1.0 - transparency);
     if (isInBounds(vTexCoord)) {
         color.a = 0;
     }
@@ -42,6 +41,7 @@ void main() {
         }
         discard;
     }
+//    color.a *= (1.0 - transparency);
 
     FragColor = vec4(mix(color.rgb, fogColor.rgb, fogColor.a), color.a);
 

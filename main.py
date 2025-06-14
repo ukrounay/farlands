@@ -7,6 +7,7 @@ from src.client.client import Client
 # modules
 from src.client.renderer import *
 from src.client.screens import ProgressBar
+from src.shared.combat.bullet import Bullet, Projectile
 from src.shared.npc.npcs import PlayerNPC
 from src.shared.physics.objects import *
 
@@ -33,7 +34,7 @@ scale = 1.0
 
 # Initialize Pygame
 pygame.init()
-screen = pygame.display.set_mode((INITIAL_SCREEN_WIDTH, INITIAL_SCREEN_HEIGHT), DOUBLEBUF | OPENGL | RESIZABLE)
+screen = pygame.display.set_mode((INITIAL_SCREEN_WIDTH, INITIAL_SCREEN_HEIGHT), DOUBLEBUF | OPENGL)
 icon = pygame.image.load(get_abs_path('assets/icon.png'))
 logo = load_texture('assets/logo.png')
 backup_bg = load_texture('assets/create_bg.png')
@@ -63,10 +64,10 @@ client = Client(font)
 # threading
 # !!!!!
 
-def game_logic_thread(running, client: Client):
+def game_logic_thread(flags, client: Client):
     client.server_clock = pygame.time.Clock()
 
-    while running:
+    while flags[0]:
         server_dt = client.server_clock.tick(TPS) / 1000.0  # Конвертуємо час у секунди
         # print(server_dt)
 
@@ -82,12 +83,15 @@ def game_logic_thread(running, client: Client):
             client.input_flags["scroll_d"] = 0
 
         if client.input_flags["mouse_clicked"]:
-            client.player.set_text_bubble("wow")
+            client.camera.shake(0.2, 5)
             if client.world is not None:
-                client.camera.shake(0.2, 5)
-                pos = (client.camera.get_offset() + screen_size - client.mouse_pos)/TILE_SIZE
-                client.world.environment.add_body(PlayerNPC(client.world, pos.x, pos.y,12, 29,
-                             client.textures["entities"]['player'][0], 50))
+                pos = (client.mouse_pos - client.camera.get_offset())/client.camera.get_scale()
+                acc = (pos - client.player.position).normalized() * (TILE_SIZE ** 3) * 10
+                t = client.textures["projectiles"]['bullet']
+                client.world.environment.add_body(
+                    Bullet(client.player.position.x, client.player.position.y,
+                           t[1], t[2], acc, 5, [client.player], t[0], 10, 2))
+
             # client.player.damage(1)
             mouse_clicked = True
             client.input_flags["mouse_clicked"] = False
@@ -123,6 +127,20 @@ def game_logic_thread(running, client: Client):
 
         # if keys[keybinds['sprint']]:
         #     player.sprint()
+
+        if client.input_flags["key_pressed"]:
+            # if keys[K_f]:
+
+
+            if keys[K_p]:
+                client.player.set_text_bubble("wow")
+                if client.world is not None:
+                    pos = (client.camera.get_offset() + screen_size - client.mouse_pos) / TILE_SIZE
+                    client.world.environment.add_body(PlayerNPC(client.world, pos.x, pos.y, 12, 29,
+                                                                client.textures["entities"]['player'][0], 50))
+
+            client.input_flags["key_pressed"] = False
+
 
 
 
@@ -211,16 +229,18 @@ TOGGLE_COOLDOWN_MS = 300  # ms to block VIDEORESIZE after fullscreen toggle
 
 running = True
 server_running = True
+server_flags = [server_running]
 
-threading.Thread(target=game_logic_thread, args=(server_running, client,), daemon=True).start()
-
+server_thread = threading.Thread(target=game_logic_thread, args=(server_flags, client,), daemon=True)
+server_thread.start()
 
 def draw_cursor():
-    client.renderer.draw_quad(client.renderer.default_shader_uniforms, client.textures["ui"]["crosshair"][0],
-              matrices["normal"],
-              create_transformation_matrix(offset=Vec2(*pygame.mouse.get_pos()) - Vec2(0.5, 0.5),
-                                           size=Vec2(client.textures["ui"]["crosshair"][1],
-                                                     client.textures["ui"]["crosshair"][2])))
+    if client.is_loading: return
+    ch = client.world is not None
+    c_texture = client.textures["ui"]["crosshair" if ch else "cursor"]
+    of = Vec2(*pygame.mouse.get_pos()) - (Vec2(0.5, 0.5) if ch else Vec2())
+    client.renderer.draw_quad(client.renderer.default_shader_uniforms, c_texture[0], matrices["normal"],
+              create_transformation_matrix(offset=of, size=Vec2(c_texture[1], c_texture[2])))
 
 
 # # Create framebuffer
@@ -274,23 +294,23 @@ else:
 glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
 
-while server_running or running:
+while server_flags[0] or running:
     dt = clock.tick() / 1000.0  # Конвертуємо час у секунди
     # print(clock.get_fps())
-    if not server_running: running = False
+    if not server_flags[0]: running = False
 
     now = pygame.time.get_ticks()
 
     for event in pygame.event.get():
         if event.type == QUIT:
-            server_running = False
+            server_flags[0] = False
+            pass
 
         elif event.type == VIDEORESIZE and now - last_toggle_time > TOGGLE_COOLDOWN_MS:
-            # Handle window resize
-            width, height = event.size
-            client.setup_screen(width, height)
+            client.setup_screen(*event.size)
 
         elif event.type == pygame.KEYDOWN:
+            client.input_flags["key_pressed"] = True
             if event.key == client.keybinds['fullscreen']:
                 client.preferences['fullscreen'] = not client.preferences['fullscreen']
                 client.setup_screen(client.screenWidth, client.screenHeight)
@@ -325,31 +345,37 @@ while server_running or running:
 
     if not client.is_initialized:
 
-        glClear(GL_COLOR_BUFFER_BIT)
+        # glClear(GL_COLOR_BUFFER_BIT)
 
-        for a in range(logo_animation_time):
+        # for a in range(logo_animation_time):
+        start_time = pygame.time.get_ticks()
+        time_animation_goes = 0
+        while time_animation_goes < logo_animation_time:
             glClear(GL_COLOR_BUFFER_BIT)
-            t = parametric_blend(a/logo_animation_time)
+            t = parametric_blend(time_animation_goes/logo_animation_time)
             client.renderer.draw_quad(client.renderer.default_shader_uniforms, logo[0], matrices["normal"],
                   create_transformation_matrix(
                       screen_size / 2,
                       Vec2(logo[1], logo[2])*(t*0.1+0.8)), 1-t)
             pygame.display.flip()
-            while pygame.time.get_ticks() < start_time + a: pass
+            time_animation_goes = pygame.time.get_ticks() - start_time
+
 
         client.initialize()
 
         client.play_sound("fx", "start")
 
-        for a in range(logo_animation_time):
+        start_time = pygame.time.get_ticks()
+        time_animation_goes = 0
+        while time_animation_goes < logo_animation_time:
             glClear(GL_COLOR_BUFFER_BIT)
-            t = parametric_blend(a/logo_animation_time)
+            t = parametric_blend(time_animation_goes/logo_animation_time)
             client.renderer.draw_quad(client.renderer.default_shader_uniforms, logo[0], matrices["normal"],
                   create_transformation_matrix(
                       screen_size / 2,
                       Vec2(logo[1], logo[2])*((1-t)*0.1+0.8)), t)
             pygame.display.flip()
-            while pygame.time.get_ticks() < start_time + a: pass
+            time_animation_goes = pygame.time.get_ticks() - start_time
 
         glClear(GL_COLOR_BUFFER_BIT)
 
@@ -490,32 +516,33 @@ while server_running or running:
                                 client.renderer.draw_quad(client.renderer.default_shader_uniforms, client.textures["tiles"][tile_type][0],
                                         create_transformation_matrix(size=body.size/TILE_SIZE),
                                           create_transformation_matrix(body.position, body.size, client.camera.get_offset(),
-                                                                       client.camera.get_scale()))
+                                                                       client.camera.get_scale()), transparency=0)
                 else:
                     client.world.map_manager.mark_chunk_dirty(x, y)
 
         if layer == 0:
+
             def in_bounds(elem):
                 pos = elem.position
-                return abs(followed_body_pos.x - pos.x) < screen_size.x*0.55 \
-                        or abs(followed_body_pos.y - pos.y) < screen_size.y*0.55
+                return abs(followed_body_pos.x - pos.x) < screen_size.x * 0.55 \
+                        or abs(followed_body_pos.y - pos.y) < screen_size.y * 0.55
 
             for body in filter(in_bounds, client.world.environment.bodies):
 
                 pos = body.position
                 if body == followed_body:
                     pos = followed_body_pos
-                # elif :
-                #     print("out of the screen, skip render")
-                #     continue
 
+                draw_outlined = False
+                outline_color = [1.0, 1.0, 1.0, 1.0]
+                outline_thickness = 2
                 scale = client.camera.get_scale()
                 offset = client.camera.get_offset()
                 texture = body.texture
-                outline_color = [1.0, 1.0, 1.0, 0.5]
                 uv = body.get_uv()
                 size = body.size
                 transparency = 0
+                wave_frequency = 250
 
                 if isinstance(body, Particle) or issubclass(type(body), Particle):
                     transparency = body.get_transparency()
@@ -524,7 +551,8 @@ while server_running or running:
 
                 elif isinstance(body, ItemStackEntity):
                     texture = client.textures["tiles"][body.stack.item.tile_type][0]
-                    outline_color = [0.0, 0.8, 0.4, 0.8]
+                    offset.y -= int((1 + math.sin(pygame.time.get_ticks()/wave_frequency + pos.x + pos.y + texture*10))*TILE_SIZE*0.25 + 0.25)
+                    draw_outlined = True
 
                 elif isinstance(body, LivingEntity) or issubclass(type(body), LivingEntity):
                     texture_number = body.state.value
@@ -544,16 +572,23 @@ while server_running or running:
                     texture = client.textures["entities"][body.entity_type][texture_number][0]
                     size = texture_size
                     pos += Vec2((body.size.x - texture_size.x)/2, body.size.y - texture_size.y)
+                    if body.is_stunted:
+                        draw_outlined = True
+                        outline_color = [1.0, 0.2, 0.1, 1.0]
 
+                if isinstance(body, Projectile) or issubclass(type(body), Projectile):
+                    draw_outlined = True
 
                 if texture is not None:
-                    # glUseProgram(client.renderer.outline_shader)
-                    # glUniform1f(client.renderer.outline_shader_uniforms["outlineThickness"], 1/scale)
-                    # glUniform4f(client.renderer.outline_shader_uniforms["outlineColor"], *outline_color)
-                    # draw_quad(client.renderer.outline_shader_uniforms, non_centered_vao, texture, uv,
-                    #                   create_transformation_matrix(pos, size, offset, scale))
-                    # glUseProgram(client.renderer.default_shader)
-                    client.renderer.draw_quad(client.renderer.default_shader_uniforms, texture, uv,
+                    if draw_outlined:
+                        glUseProgram(client.renderer.outline_shader)
+                        glUniform1f(client.renderer.outline_shader_uniforms["outlineThickness"], (1/scale)*outline_thickness)
+                        glUniform4f(client.renderer.outline_shader_uniforms["outlineColor"], *outline_color)
+                        client.renderer.draw_quad(client.renderer.outline_shader_uniforms, texture, uv,
+                                          create_transformation_matrix(pos, size, offset, scale), transparency)
+                        glUseProgram(client.renderer.default_shader)
+                    else:
+                        client.renderer.draw_quad(client.renderer.default_shader_uniforms, texture, uv,
                                       create_transformation_matrix(pos, size, offset, scale), transparency)
 
 
@@ -584,7 +619,11 @@ while server_running or running:
                         client.renderer.draw_quad(client.renderer.default_shader_uniforms, t[0], matrices["normal"],
                                                   create_transformation_matrix(pos + Vec2(size.x*-0.5 if flip else size.x*0.5, size.y), size, offset, scale,
                                                                                rotation=rotation, flip_x=flip, origin=Vec2(0.5, 0.5)))
-                if isinstance(body, PlayerNPC):
+
+
+                # draw nps targets
+
+                if isinstance(body, PlayerNPC) and client.is_debugging:
                     poss = []
                     if body.brain.target_pos is not None: poss += [body.brain.target_pos*TILE_SIZE]
                     if body.brain.action is not None: poss += [Vec2(body.brain.action.jumps[f]*TILE_SIZE, body.position.y) for f in range(len(body.brain.action.jumps))]
@@ -640,6 +679,32 @@ while server_running or running:
 
     if client.is_debugging:
         client.renderer.draw_debug_info(client.renderer.default_shader_uniforms, font, clock, client.server_clock, client.player)
+
+        debug_map_size = screen_size/6
+        debug_map_chunk_size = Vec2(1,1)*TILE_SIZE
+        gap = TILE_SIZE
+        debug_map_offset = Vec2(screen_size.x-debug_map_size.x/2 - gap, debug_map_size.y/2 + gap)
+        poss = list(client.world.environment.map_manager.dirty_chunks)
+
+        for chunk_pos in poss:
+            t = client.textures["tiles"]["dirt"]
+            client.renderer.draw_quad(client.renderer.default_shader_uniforms, t[0], matrices["normal"],
+                                      create_transformation_matrix(Vec2(*chunk_pos), Vec2(1,1), debug_map_offset, debug_map_chunk_size.x))
+        p = pos_world_to_map(client.player.position)
+        cx, cy, lx, ly = client.world.map_manager.get_local_coords(p.x, p.y)
+        sim_range =3
+
+
+
+        poss = [Vec2(x,y)
+                for y in range(cy - sim_range, cy + sim_range)
+                for x in range(cx - sim_range, cx + sim_range)]
+
+        for chunk_pos in poss:
+            t = client.textures["tiles"]["stone"] if chunk_pos == Vec2(cx, cy) \
+                else client.textures["tiles"]["grass_dirt"]
+            client.renderer.draw_quad(client.renderer.default_shader_uniforms, t[0], matrices["normal"],
+                                      create_transformation_matrix(chunk_pos, Vec2(1,1), debug_map_offset, debug_map_chunk_size.x))
 
     else:
         gap = UI_GAP
@@ -704,8 +769,6 @@ while server_running or running:
 
 
     draw_cursor()
-
-
 
 
     # post-processing

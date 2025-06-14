@@ -71,6 +71,8 @@ class Vec2:
         #     angle_deg += 360
         return angle_deg
 
+    def __eq__(self, other):
+        return isinstance(other, Vec2) and self.x == other.x and self.y == other.y
 
 class Vec2i:
     x: int
@@ -281,8 +283,11 @@ def create_transformation_matrix(
         flip_matrix = np.identity(4, dtype=np.float32)
         if flip_x:
             flip_matrix[0, 0] = -1.0
+            flip_matrix[3, 0] = 1.0
+
         if flip_y:
             flip_matrix[1, 1] = -1.0
+            flip_matrix[3, 1] = 1.0
         matrix = np.matmul(matrix, flip_matrix)
 
     # Step 3: Skew
@@ -341,10 +346,13 @@ matrices = {
 }
 
 
-class Direction(Enum):
+class DirectionX(Enum):
     RIGHT = 1
     LEFT = -1
 
+class DirectionY(Enum):
+    DOWN = 1
+    UP = -1
 
 def coord_round(value):
     return math.floor(value) if value >= 0 else math.floor(value) - 1
@@ -353,3 +361,14 @@ def coord_round(value):
 def pos_world_to_map(pos):
     pos = pos / TILE_SIZE
     return Vec2(coord_round(pos.x), coord_round(pos.y))
+
+
+def clamp(x, min, max):
+    if x < min: x = min
+    elif x > max: x = max
+    return x
+
+
+def norm(y):
+    if y == 0: return 0
+    else: return y / y
