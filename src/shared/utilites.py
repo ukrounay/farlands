@@ -272,11 +272,6 @@ def create_transformation_matrix(
     """
     matrix = np.identity(4, dtype=np.float32)
 
-    # Step 1: Apply origin offset (move origin to 0,0)
-    origin_offset_matrix = np.identity(4, dtype=np.float32)
-    origin_offset_matrix[3, 0] = -origin.x
-    origin_offset_matrix[3, 1] = -origin.y
-    matrix = np.matmul(matrix, origin_offset_matrix)
 
     # Step 2: Flip
     if flip_x or flip_y:
@@ -289,6 +284,12 @@ def create_transformation_matrix(
             flip_matrix[1, 1] = -1.0
             flip_matrix[3, 1] = 1.0
         matrix = np.matmul(matrix, flip_matrix)
+
+    # Step 1: Apply origin offset (move origin to 0,0)
+    origin_offset_matrix = np.identity(4, dtype=np.float32)
+    origin_offset_matrix[3, 0] = -origin.x
+    origin_offset_matrix[3, 1] = -origin.y
+    matrix = np.matmul(matrix, origin_offset_matrix)
 
     # Step 3: Skew
     if skew_x != 0.0 or skew_y != 0.0:

@@ -93,6 +93,7 @@ class Entity(RigidBody):
     """
     def __init__(self, x, y, width, height, texture, mass, max_age=0, gravity_enabled=True, is_immovable=False, is_physical=True):
         super().__init__(x, y, width, height, texture, mass, gravity_enabled, is_immovable, is_physical)
+        self.pending_sounds = set()
         self.age = 0
         self.max_age = max_age
         self.is_alive = True
@@ -132,6 +133,10 @@ class Entity(RigidBody):
     def on_spawn(self):
         pass
 
+    def add_pending_sound(self, category, name, variation=0, force_play=False, maxtime=0, fade=0):
+        self.pending_sounds.add((category, name, variation, force_play, maxtime, fade))
+
+
 class Particle(Entity):
     def __init__(self, x, y, width, height, texture, direction=Vec2(), max_age=1, gravity_enabled=True, is_immovable=False, is_physical=False):
         super().__init__(x, y, width, height, texture, 0, max_age, gravity_enabled, is_immovable, is_physical)
@@ -145,13 +150,13 @@ class Particle(Entity):
         return True # should skip collision
 
 class TileBreakParticle(Particle):
-    def __init__(self, block_pos, tile_type, size=Vec2(0.25,0.25), direction=Vec2(), max_age=1, gravity_enabled=True, is_immovable=False, is_physical=False):
+    def __init__(self, block_pos, tile_type, size=Vec2(0.25,0.25), direction=Vec2(), max_age=1, gravity_enabled=False, is_immovable=False, is_physical=False):
         super().__init__((block_pos.x + random.random()) * TILE_SIZE, (block_pos.y + random.random()) * TILE_SIZE,
                          TILE_SIZE * size.x, TILE_SIZE * size.y, None, direction, max_age, gravity_enabled, is_immovable, is_physical)
         self.tile_type = tile_type
         self.uv_offset = create_transformation_matrix(
-            position=Vec2(random.randint(0, 3), random.randint(0, 3)) * size * TILE_SIZE,
-            size=Vec2(1,1))
+            position=Vec2(random.randint(0, 3), random.randint(0, 3)) * size,
+            size=size)
 
     def get_uv(self):
         return self.uv_offset
@@ -198,6 +203,8 @@ class LivingEntity(Entity):
         self.direction = DirectionX.RIGHT
         self.environment = None
         self.inventory = Inventory(size=9)
+
+        self.walking_sound_ticks = 0
 
     def get_gravity(self, direction=DirectionY.UP):
         gravity = GRAVITY
@@ -343,6 +350,12 @@ class LivingEntity(Entity):
             self.animation_frame = 0
         self.update_state(dt)
 
+        if self.is_grounded and (self.is_traveling_left or self.is_traveling_right):
+            self.walking_sound_ticks -= dt
+            if self.walking_sound_ticks <= 0:
+                self.add_pending_sound("fx", "walking", int(random.random() * 10))
+                self.walking_sound_ticks = self.movement_speed/(TILE_SIZE*TILE_SIZE)
+
     # def get_uv(self):
     #     return [
     #         self.animation_frame * self.size.x / self.texture_sheet_width, 0,
@@ -372,6 +385,35 @@ class LivingEntity(Entity):
         pass
 
 
+
+
+class Item:
+    def __init__(self, tile_type):
+        self.tile_type = tile_type
+
+
+
+class ItemStack:
+    def __init__(self, item: Item, count: int = 1):
+        self.count = count
+        self.item = item
+
+class ItemStackEntity(Entity):
+    def __init__(self, x, y, stack: ItemStack, width=TILE_SIZE/2, height=TILE_SIZE/2, texture=None, mass=1, max_age=0, gravity_enabled=True, is_immovable=False, is_physical=True):
+        super().__init__(x, y, width, height, texture, mass, max_age, gravity_enabled, is_immovable, is_physical)
+        self.stack = stack
+
+    def interact(self, other, is_body1_inside=False, is_body2_inside=False):
+        if isinstance(other, ItemStackEntity):
+            if other.stack.item.tile_type == self.stack.item.tile_type:
+                self.stack.count += other.stack.count
+                other.kill()
+        if isinstance(other, LivingEntity) or issubclass(type(other), LivingEntity):
+            if other.inventory.pick_item(self.stack):
+                self.kill()
+                other.add_pending_sound("fx", "pick_up")
+        return isinstance(other, Entity) or issubclass(type(other), Entity)
+
 class Inventory:
     """
     Interface to manage a list of items
@@ -382,7 +424,7 @@ class Inventory:
         self.items = [None for _ in range(size)]
         self.slot = 0
 
-    def get_current(self):
+    def get_current(self) -> ItemStack | None:
         return self.items[self.slot]
 
     def set_slot_pointer(self, slot_number):
@@ -414,38 +456,7 @@ class Inventory:
         if self.items[s].count < 1:
             self.items[s] = None
 
-class Item:
-    def __init__(self, tile_type):
-        self.tile_type = tile_type
 
-class ItemStack:
-    def __init__(self, item: Item, count: int):
-        self.count = count
-        self.item = item
-
-class ItemStackEntity(Entity):
-    def __init__(self, x, y, stack: ItemStack, width=TILE_SIZE/2, height=TILE_SIZE/2, texture=None, mass=1, max_age=0, gravity_enabled=True, is_immovable=False, is_physical=True):
-        super().__init__(x, y, width, height, texture, mass, max_age, gravity_enabled, is_immovable, is_physical)
-        self.stack = stack
-
-    def interact(self, other, is_body1_inside=False, is_body2_inside=False):
-        if isinstance(other, ItemStackEntity):
-            if other.stack.item.tile_type == self.stack.item.tile_type:
-                self.stack.count += other.stack.count
-                other.kill()
-        return isinstance(other, Entity) or issubclass(type(other), Entity)
-
-
-class Player(LivingEntity):
-    def __init__(self, x, y, width, height, texture, mass, health=16, max_age=0, gravity_enabled=True, is_immovable=False, is_physical=True):
-        super().__init__(x, y, width, height, texture, mass, health, "player", max_age, gravity_enabled, is_immovable, is_physical)
-
-
-    def interact(self, other, is_body1_inside=False, is_body2_inside=False):
-        if isinstance(other, ItemStackEntity):
-            if self.inventory.pick_item(other.stack):
-                other.kill()
-        return super().interact(other)
 
 
 

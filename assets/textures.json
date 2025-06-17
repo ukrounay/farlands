@@ -33,7 +33,8 @@
         "health_info": "ui/health_info.png",
         "healthbar": "ui/healthbar.png",
         "stats_ui": "stats_ui.png",
-        "stats_ui_progress_bar": "stats_ui_progress_bar.png"
+        "stats_ui_progress_bar": "stats_ui_progress_bar.png",
+        "overlay": "ui/overlay.png"
     },
     "bin": {
         "cave_dirt": "test_red.png",
@@ -45,18 +46,25 @@
         "dirt": "biomes/laria_valley/tiles/dirt.png",
         "grass_dirt": "biomes/laria_valley/tiles/grass_dirt.png",
         "stone": "biomes/laria_valley/tiles/stone.png",
+
         "cave_dirt": "biomes/laria_valley/tiles/cave_dirt.png",
         "cave_grass_dirt": "biomes/laria_valley/tiles/cave_grass_dirt.png",
         "cave_stone": "biomes/laria_valley/tiles/cave_stone.png",
+
+
         "grass": "biomes/laria_valley/grass.png",
         "grass_high": "biomes/laria_valley/grass_high.png",
         "grass_water": "biomes/laria_valley/grass_water.png",
         "cave_ground": "ground.png",
         "cave_grass": "biomes/laria_valley/grass.png",
-        "metal_ore":  "stone.png",
-        "precious_stone":  "stone.png",
         "mushroom": "biomes/laria_valley/mushroom.png",
-        "tree": "biomes/laria_valley/tree.png"
+        "tree": "biomes/laria_valley/tree.png",
+
+        "freezing_stone": "biomes/laria_valley/tiles/freezing_stone.png",
+        "scorching_stone": "biomes/laria_valley/tiles/scorching_stone.png",
+        "tough_stone": "biomes/laria_valley/tiles/tough_stone.png",
+        "staff": "staff.png"
+
     },
     "tiles_irregular": {
         "mushroom": "biomes/laria_valley/mushroom.png",
@@ -67,6 +75,11 @@
     },
     "color_maps": {
         "grass": "biomes/laria_valley/grass_colors.png"
+    },
+    "items": {
+        "freezing_stone": "biomes/laria_valley/items/freezing_stone.png",
+        "scorching_stone": "biomes/laria_valley/items/scorching_stone.png",
+        "staff": "staff.png"
     },
     "background": {
         "star_meadow": [

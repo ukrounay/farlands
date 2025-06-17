@@ -40,8 +40,9 @@ void main() {
             }
         }
         discard;
+    } else {
+        color.a *= (1.0 - transparency);
     }
-//    color.a *= (1.0 - transparency);
 
     FragColor = vec4(mix(color.rgb, fogColor.rgb, fogColor.a), color.a);
 

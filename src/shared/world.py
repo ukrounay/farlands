@@ -5,6 +5,7 @@ from src.server.terrain import *
 from src.shared.physics.objects import *
 
 class World:
+
     def __init__(self):
         self.map_manager = None
         self.environment = Environment(None)
@@ -22,6 +23,32 @@ class World:
         #     for cy in range(1 - init_range, init_range - 1):
         #         self.map_manager.update_chunk(cx, cy)
         #         client.loaded += d
+
+    def spawn(self, entity, x):
+        x = int(x)
+        y = int(entity.position.y / TILE_SIZE)
+        search_iterations = 200
+        can_spawn = False
+        while search_iterations > 0:
+            print("search_iterations", search_iterations)
+            tile = self.map_manager.get_tile(x, y)
+            if tile is None:
+                tile_down = self.map_manager.get_tile(x, y + 1)
+                if tile_down is not None:
+                    can_spawn = True
+                    break
+                else:
+                    y += 1
+            else:
+                y -= 1
+            search_iterations -= 1
+
+        if can_spawn:
+            pos = Vec2(x*TILE_SIZE, y*TILE_SIZE - entity.size.y)
+            entity.position = pos
+            entity.position_old = entity.position
+            self.environment.add_body(entity)
+        return can_spawn
 
 
 # -------------------------------------------------------------------------------------------
@@ -315,7 +342,7 @@ class MapManager:
 
                 self.world.environment.add_body(ItemStackEntity((pos.x+0.5)*TILE_SIZE, (pos.y+0.5)*TILE_SIZE,
                                                                   ItemStack(Item(tile.tile_type), 1)))
-                for pn in range(int((random.random()*5+5))):
+                for particles_number in range(int((random.random()*5+5))):
                     self.world.environment.add_body(
                         TileBreakParticle(pos, tile.tile_type, max_age=random.random()*0.3+0.2,
                                  direction=Vec2(random.random(), random.random())*10))
@@ -332,7 +359,8 @@ class MapManager:
         if chunk_key in self.map:
             tile = self.map[chunk_key][lx][ly]
             if tile is None:
-                self.map[chunk_key][lx][ly] = Tile(global_x, global_y, tile_type)
+                is_physical = True
+                self.map[chunk_key][lx][ly] = Tile(global_x, global_y, tile_type, is_physical)
                 self.update_tile(global_x, global_y, True)
 
         self.mark_chunk_dirty(cx, cy)
@@ -407,6 +435,8 @@ class MapManager:
 
         will_not_be_visible = set()
 
+        self.physical_meshes[(cx, cy)] = []
+
         for layer in range(1, -2, -1):
             chunk = self.get_chunk(cx, cy, layer)
             visited = set()
@@ -423,9 +453,9 @@ class MapManager:
                         continue
 
 
-                    tile_visibility = (lx, ly) in will_not_be_visible
+                    is_tile_not_visible = (lx, ly) in will_not_be_visible
 
-                    if tile_visibility and layer != 0:
+                    if is_tile_not_visible and layer != 0:
                         continue
 
                     tile_type = tile.tile_type
@@ -438,7 +468,7 @@ class MapManager:
                         if ((lx + width, ly) in visited
                                 or t is None
                                 or t.tile_type != tile_type
-                                or (tile_visibility == (lx + width, ly) in will_not_be_visible)):
+                                or (is_tile_not_visible != (lx + width, ly) in will_not_be_visible)):
                             break
                         width += 1
 
@@ -450,8 +480,8 @@ class MapManager:
                             t = chunk[lx + dx][ly + height]
                             if ((lx + dx, ly + height) in visited
                                     or t is None
-                                    or t.tile_type != tile_type)\
-                                    or (tile_visibility == (lx + width, ly) in will_not_be_visible):
+                                    or t.tile_type != tile_type
+                                    or is_tile_not_visible != (lx + dx, ly + height) in will_not_be_visible):
                                 valid_row = False
                                 break
                         if not valid_row:
@@ -463,22 +493,17 @@ class MapManager:
                         for dx in range(width):
                             visited.add((lx + dx, ly + dy))
                             if not tile.tile_type in TileTypeGroups.TRANSPARENT:
-                                will_not_be_visible.add((lx, ly))
+                                will_not_be_visible.add((lx + dx, ly + dy))
 
                     # --- Add to render mesh ---
-                    rect_x = tile.position.x
-                    rect_y = tile.position.y
-                    rect_w = width * TILE_SIZE
-                    rect_h = height * TILE_SIZE
-
-                    rb = RigidBody(rect_x, rect_y, rect_w, rect_h, None, 0, False, True, True)
+                    rb = RigidBody(tile.position.x, tile.position.y,
+                                   width * TILE_SIZE,height * TILE_SIZE,
+                                   None, 0, False, True, True)
 
                     if layer == 0:
-                        if not (cx, cy) in self.physical_meshes:
-                            self.physical_meshes[(cx, cy)] = []
                         self.physical_meshes[(cx, cy)].append(rb)
 
-                    if not tile_visibility:
+                    if not is_tile_not_visible:
                         if not tile_type in meshes:
                             meshes[tile_type] = []
                         meshes[tile_type].append(rb)

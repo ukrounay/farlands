@@ -4,6 +4,7 @@ import sys
 
 import pygame
 
+from src.client.player import Player
 from src.client.renderer import *
 from src.client.screens import *
 from src.shared.physics.objects import *
@@ -13,7 +14,7 @@ from src.shared.world import World
 
 
 class Client:
-    player: Player | None
+    player: Player
     world: World | None
     server_clock: pygame.time.Clock | None
     screen: pygame.Surface | None
@@ -29,6 +30,8 @@ class Client:
     loaded: float
 
     def __init__(self, default_font):
+        self.cheat_inventory = None
+        self.items = None
         self.default_font = default_font
         self.screens = {}
         self.input_flags = {
@@ -45,7 +48,7 @@ class Client:
         self.screen = None
         self.keybinds = None
         self.world = None
-        self.player = None
+        self.player = Player(0, 0,12, 29, None, 50)
         self.camera = Camera()
         self.sceneHeight = None
         self.sceneWidth = None
@@ -78,9 +81,24 @@ class Client:
         # Load data from the JSON file
         self.textures, texture_dict = load_textures_from_json('assets/textures.json')
 
-        self.player = Player(0, 0,12, 29,
-                             self.textures["entities"]['player'][0], 50)
+        with open(get_abs_path("data/items.json")) as f:
+            self.items = json.load(f)
 
+        self.player.texture = self.textures["entities"]['player'][0]
+        self.player.inventory.pick_item(ItemStack(Item("staff")))
+        # self.cheat_inventory = Inventory(len(self.items))
+        # self.cheat_inventory.items = [ItemStack(Item(item.tile_type), 1) for item in self.items]
+        # self.screens["all_items"] = Screen(
+        #     Image(0,0, Vec2(), 1, 1,
+        #         self.textures["ui"]["overlay"][0]
+        #     ),
+        #     Button(0.5, 50.6, Vec2(),
+        #        self.textures["ui"]["main_menu_play"][1],
+        #        self.textures["ui"]["main_menu_play"][2],
+        #        self.textures["ui"]["main_menu_play"][0],
+        #        ButtonForm.SQ45
+        #     ),
+        # )
 
         self.screens["main_menu"] = Screen(
             Image(0,0, Vec2(),
@@ -362,27 +380,26 @@ class Client:
         cx, cy, lx, ly = self.world.map_manager.get_local_coords(p.x, p.y)
         # sim_range = math.ceil(max(screenWidth, screenHeight)/2/TILE_SIZE/self.map_manager.chunk_size) + 1
         self.world.environment.update(dt, cx, cy, 3, self.camera)
+        for body in self.world.environment.bodies:
+            if isinstance(body, Entity) or issubclass(type(body), Entity):
+                for sound_params in body.pending_sounds:
+                    self.play_sound(*sound_params)
+                body.pending_sounds.clear()
 
     def play_sound(self, category, name, variation=0, force_play=False, maxtime=0, fade=0):
         # Determine which sound we're about to play
         sound = self.sounds[category][name][variation % len(self.sounds[category][name])]
 
         # Check if it's a long/background sound (like 'music')
-        if category == "music":
-            # Only play if nothing's playing already
-            if force_play:
-                if self.currently_playing["music"]:
-                    self.currently_playing["music"].stop()
-                # Then play new music
+        if category in ["music", "ambience"]:
 
-            if not self.currently_playing.get("music") or not self.currently_playing["music"].get_busy():
+            if force_play:
+                if self.currently_playing[category]:
+                    self.currently_playing[category].stop()
+
+            if not self.currently_playing.get(category) or not self.currently_playing[category].get_busy():
                 channel = sound.play(-1)  # loop music
-                self.currently_playing["music"] = channel
+                self.currently_playing[category] = channel
         else:
             # Play short SFX without restrictions
             sound.play(maxtime=maxtime, fade_ms=fade)
-
-
-
-
-    # ui

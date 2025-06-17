@@ -1,14 +1,17 @@
+import math
 import os
+from enum import Enum
 
 import numpy as np
-import pygame
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
 from OpenGL.GLUT import c_void_p
+from OpenGL.raw.GL.VERSION.GL_2_0 import glUniform4f, glUseProgram, glUniform1f
+from OpenGL.raw.GL.VERSION.GL_3_0 import glBindVertexArray
 
-from src.shared.globals import *
+from src.shared.globals import TILE_SIZE, DEBUG_FONT_SIZE, UI_GAP
 from src.shared.textures import surface_to_texture
-from src.shared.utilites import Vec2, matrices, create_transformation_matrix
+from src.shared.utilites import Vec2, matrices, create_transformation_matrix, Vec2i, pos_world_to_map
 
 
 class Renderer:
@@ -168,4 +171,10 @@ def load_shader(vertex_path, fragment_path):
         compileShader(fragment_src, GL_FRAGMENT_SHADER)
     )
     return shader
+
+
+class CursorType(Enum):
+    DEFAULT = 0
+    CROSSHAIR = 1
+
 

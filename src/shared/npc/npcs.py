@@ -1,6 +1,7 @@
+from src.client.player import Player
 from src.shared.globals import TILE_SIZE
 from src.shared.npc.brains import NPCBrain
-from src.shared.physics.objects import LivingEntity, Player
+from src.shared.physics.objects import LivingEntity
 from src.shared.utilites import pos_world_to_map
 
 

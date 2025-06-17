@@ -1,16 +1,37 @@
 {
     "fx": {
-        "start": ["fx/start.wav"]
+        "start": ["fx/start.wav"],
+        "click": ["fx/rachet-click-47834.mp3.wav"],
+        "pick_up": ["fx/video-game-item-pick-up-gamemaster-audio-1-00-00.mp3"],
+        "break": ["fx/crate-break-1-93926.mp3"],
+        "put": ["fx/20131204_step_h2nextxy-105264.mp3"],
+        "bullet_fire": ["fx/acid_spell_cast_squish_ball_impact_02-286767.mp3"],
+        "walking": [
+            "fx/aj/footstepDirt1.wav",
+            "fx/aj/footstepDirt2.wav",
+            "fx/aj/footstepDirt3.wav"
+        ]
+    },
+    "ambience": {
+        "forest": [
+            "night-in-nature-126655.mp3"
+        ]
+    },
+    "music": {
+        "background": [
+            "mf_pack/7. Mystic Grove.mp3"
+        ]
     },
     "background_music": {
         "star_meadow": [
-            "mf_pack/3. Darkwood Path.mp3"
+            "mf_pack/3. Darkwood Path.mp3",
+            "mf_pack/8. Throne of Storms.mp3"
         ],
         "farlands_plato": [
             "mf_pack/5. Emberlight.mp3"
         ],
         "laria_valley": [
-            "mf_pack/8. Throne of Storms.mp3"
+            "mf_pack/7. Mystic Grove.mp3"
         ]
     }
 }

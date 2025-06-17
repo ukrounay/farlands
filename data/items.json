@@ -1,0 +1,104 @@
+{
+  "ground": {
+    "type": "building_block",
+    "transparent": false,
+    "needs_standing": false,
+    "durability": 100
+  },
+  "dirt": {
+    "type": "building_block",
+    "transparent": false,
+    "needs_standing": false,
+    "durability": 100
+  },
+  "grass_dirt": {
+    "type": "building_block",
+    "transparent": false,
+    "needs_standing": false,
+    "durability": 100
+  },
+  "stone": {
+    "type": "building_block",
+    "transparent": false,
+    "needs_standing": false,
+    "durability": 100
+  },
+  "cave_dirt": {
+    "type": "building_block",
+    "transparent": false,
+    "needs_standing": false,
+    "durability": 100
+  },
+  "cave_grass_dirt": {
+    "type": "building_block",
+    "transparent": false,
+    "needs_standing": false,
+    "durability": 100
+  },
+  "cave_stone": {
+    "type": "building_block",
+    "transparent": false,
+    "needs_standing": false,
+    "durability": 100
+  },
+  "grass": {
+    "type": "plant",
+    "transparent": true,
+    "needs_standing": true,
+    "durability": 0
+  },
+  "grass_high": {
+    "type": "plant",
+    "transparent": true,
+    "needs_standing": true,
+    "durability": 0
+  },
+  "grass_water": {
+    "type": "plant",
+    "transparent": true,
+    "needs_standing": true,
+    "durability": 0
+  },
+  "cave_ground": {
+    "type": "building_block",
+    "transparent": false,
+    "needs_standing": false,
+    "durability": 100
+  },
+  "cave_grass": {
+    "type": "building_block",
+    "transparent": false,
+    "needs_standing": false,
+    "durability": 100
+  },
+  "scorching_stone":  {
+    "type": "ore",
+    "transparent": false,
+    "needs_standing": false,
+    "durability": 100
+  },
+  "freezing_stone":  {
+    "type": "ore",
+    "transparent": false,
+    "needs_standing": false,
+    "durability": 100
+  },
+  "mushroom": {
+    "type": "plant",
+    "transparent": true,
+    "needs_standing": true,
+    "durability": 100
+  },
+  "tree": {
+    "type": "plant",
+    "transparent": true,
+    "needs_standing": true,
+    "durability": 100
+  },
+  "staff": {
+    "type": "tool",
+    "transparent": true,
+    "needs_standing": true,
+    "durability": 100
+  }
+}

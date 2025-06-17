@@ -1,5 +1,4 @@
 # Constants
-from pygame.examples.grid import TILE_SIZE
 
 TILE_SIZE = 16
 INITIAL_SCREEN_WIDTH = 800
@@ -12,3 +11,4 @@ FOLLOW_POINT_RETURN_INTERVAL = 2 * FPS
 DEBUG_FONT_SIZE = 18
 UI_GAP = 5
 GRAVITY = 29.8*TILE_SIZE
+TOGGLE_COOLDOWN_MS = 300  # ms to block VIDEORESIZE after fullscreen toggle
