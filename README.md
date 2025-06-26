@@ -6,4 +6,4 @@
 - procedural terrain
 - openGL with pygame wrapping
 
-[Project board (ukr)](https://trello.com/b/2NQTVj1E/farlands-game-engine)
+[Project board](https://trello.com/b/2NQTVj1E/farlands-game-engine)
