@@ -13,6 +13,32 @@ from src.shared.textures import *
 from src.shared.world import World
 
 
+import asyncio
+import json
+
+class GameClient:
+    def __init__(self, use_local_server=False, local_server=None):
+        self.use_local_server = use_local_server
+        self.local_server = local_server
+        self.websocket = None
+
+    async def connect(self, server_url=None):
+        if not self.use_local_server:
+            import websockets
+            self.websocket = await websockets.connect(server_url)
+            await self.websocket.send("player_1")  # send player ID
+
+    async def send_input(self, input_data):
+        if self.use_local_server and self.local_server:
+            self.local_server.handle_input("player_1", input_data)
+            return self.local_server.get_state()
+        else:
+            await self.websocket.send(json.dumps(input_data))
+            response = await self.websocket.recv()
+            return json.loads(response)
+
+
+
 class Client:
     player: Player
     world: World | None
@@ -30,6 +56,7 @@ class Client:
     loaded: float
 
     def __init__(self, default_font):
+        self.debug_text = [""]
         self.cheat_inventory = None
         self.items = None
         self.default_font = default_font
@@ -80,7 +107,7 @@ class Client:
     def load_resources(self):
         # Load data from the JSON file
         self.textures, texture_dict = load_textures_from_json('assets/textures.json')
-
+        glBindTexture(GL_TEXTURE_2D, self.renderer.bound_texture)
         with open(get_abs_path("data/items.json")) as f:
             self.items = json.load(f)
 
@@ -227,7 +254,7 @@ class Client:
         Creates a 4x4 orthographic projection matrix for 2D rendering
         matching screen coordinates (0,0) top-left to (width,height) bottom-right.
         """
-        matrix = np.identity(4, dtype=np.float32)
+        # matrix = np.identity(4, dtype=np.float32)
 
         # # Left, Right, Bottom, Top, Near, Far
         # left = 0.0
@@ -257,6 +284,25 @@ class Client:
         # return matrix
 
         # third implementation
+
+        # w = self.screenWidth
+        # h = self.screenHeight
+        # z_near = -1.0
+        # z_far = 1.0
+        #
+        # proj = np.identity(4, dtype=np.float32)
+        #
+        # proj[0, 0] = 2.0 / w
+        # proj[1, 1] = 2.0 / h  # No negative to avoid flipping
+        # proj[2, 2] = -2.0 / (z_far - z_near)
+        #
+        # proj[0, 3] = -1.0
+        # proj[1, 3] = -1.0  # Adjusted to move (0,0) to bottom-left
+        # proj[2, 3] = -(z_far + z_near) / (z_far - z_near)
+        #
+        # return proj
+
+        # with flipped y
 
         w = self.screenWidth
         h = self.screenHeight
@@ -358,15 +404,14 @@ class Client:
         self.ortho_projection_matrix = self.create_ortho_projection_matrix()
 
         # Update screen size uniform in shaders
-        glUseProgram(self.renderer.outline_shader)
-        glUniform2f(self.renderer.outline_shader_uniforms["screenSize"], width, height)
-        glUniformMatrix4fv(self.renderer.outline_shader_uniforms["projectionMatrix"],
-                           1, GL_TRUE, self.ortho_projection_matrix)
+        self.renderer.use_shader("outline")
+        glUniform2f(self.renderer.current_uniform_locations["screenSize"], width, height)
+        glUniformMatrix4fv(self.renderer.current_uniform_locations["projectionMatrix"],1, GL_TRUE, self.ortho_projection_matrix)
 
-        glUseProgram(self.renderer.default_shader)
-        glUniform2f(self.renderer.default_shader_uniforms["screenSize"], width, height)
-        glUniformMatrix4fv(self.renderer.default_shader_uniforms["projectionMatrix"],
-                           1, GL_TRUE, self.ortho_projection_matrix)
+        self.renderer.use_shader("default")
+        glUniform2f(self.renderer.current_uniform_locations["screenSize"], width, height)
+        glUniformMatrix4fv(self.renderer.current_uniform_locations["projectionMatrix"],1, GL_TRUE, self.ortho_projection_matrix)
+
 
         # Enable blending for texture transparency
         glEnable(GL_BLEND)

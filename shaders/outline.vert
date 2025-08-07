@@ -9,7 +9,7 @@ uniform float centered;
 
 uniform mat4 modelMatrix;
 uniform mat4 projectionMatrix;
-uniform mat4 uvTransform;
+uniform vec4 uvTransform;
 
 out vec2 vTexCoord;
 out vec2 texelSize;
@@ -21,11 +21,14 @@ void main() {
     vec2 scaleModifier = vec2(1,1) + texelSize * 2;
 
     vec2 pos = inPosition * scaleModifier;
-    vec2 txc = inTexCoord * scaleModifier;
+    vec2 uv = inTexCoord*(uvTransform.ba - uvTransform.rg) + uvTransform.rg;
+    vec2 txc = uv * scaleModifier;
 
     if (centered == 0) pos -= texelSize;
     txc -= texelSize;
 
     gl_Position = projectionMatrix * modelMatrix * vec4(pos, 0.0, 1.0);
-    vTexCoord = (uvTransform * vec4(txc.x, 1-txc.y,0,1)).xy;
+
+    vTexCoord = txc;
+
 }

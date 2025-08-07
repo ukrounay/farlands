@@ -7,11 +7,13 @@ from src.shared.globals import TILE_SIZE
 
 
 class Vec2:
+    __slots__ = ('x', 'y', "xy")
     x: float
     y: float
     def __init__(self, x=0.0, y=0.0):
         self.x = x
         self.y = y
+        self.xy = [x,y]
 
     def __add__(self, other):
         if isinstance(other, Vec2):
@@ -74,7 +76,32 @@ class Vec2:
     def __eq__(self, other):
         return isinstance(other, Vec2) and self.x == other.x and self.y == other.y
 
+class Vec4:
+    __slots__ = ('r', 'g', 'b', 'a', "xyz", "rgb", "rgba")
+    r: float
+    g: float
+    b: float
+    a: float
+    def __init__(self, r=0.0, g=0.0, b=0.0, a=0.0):
+        self.r = r
+        self.g = g
+        self.b = b
+        self.a = a
+        self.xyz = [r, g, b]
+        self.rgb = [r, g, b]
+        self.rgba = [r, g, b, a]
+
+    def transform(self, other):
+        return Vec4(
+            self.r + other.r,
+            self.g + other.g,
+            self.b * other.b,
+            self.a * other.a,
+        )
+
+
 class Vec2i:
+    __slots__ = ('x', 'y')
     x: int
     y: int
     def __init__(self, x=0, y=0):
@@ -246,11 +273,30 @@ def parametric_blend(t):
 #
 #     return matrix
 
+class MatrixPool:
+    def __init__(self):
+        self.flip = np.identity(4, dtype=np.float32)
+        self.origin = np.identity(4, dtype=np.float32)
+        self.skew = np.identity(4, dtype=np.float32)
+        self.scale = np.identity(4, dtype=np.float32)
+        self.rotation = np.identity(4, dtype=np.float32)
+        self.translation = np.identity(4, dtype=np.float32)
+        self.result = np.identity(4, dtype=np.float32)
+
+    def reset(self, mat):
+        mat.fill(0.0)
+        for i in range(4):
+            mat[i, i] = 1.0
+
+default_transform_matrix_pool = MatrixPool()
+
 def create_transformation_matrix(
     position=Vec2(), size=Vec2(TILE_SIZE, TILE_SIZE), offset=Vec2(), scale=1,
     rotation=0.0, skew_x=0.0, skew_y=0.0,
     flip_x=False, flip_y=False,
-    origin=Vec2(0, 0)
+    origin=Vec2(0, 0),
+    matrix=None,
+    pool=default_transform_matrix_pool
 ):
     """
     Create a transformation matrix for 2D rendering with optional flipping, skewing, and origin pivot.
@@ -266,62 +312,63 @@ def create_transformation_matrix(
         flip_x: Mirror on X
         flip_y: Mirror on Y
         origin: Vec2 in [0, 1] space relative to size — pivot point (e.g., (0.5, 0.5) is center)
-
+        pool: MatrixPool object where temporary matrices used for each transformation step stored
     Returns:
         4x4 transformation matrix as numpy array
     """
-    matrix = np.identity(4, dtype=np.float32)
+    if matrix is None:
+        matrix = pool.result
 
 
     # Step 2: Flip
     if flip_x or flip_y:
-        flip_matrix = np.identity(4, dtype=np.float32)
+        pool.reset(pool.flip)
         if flip_x:
-            flip_matrix[0, 0] = -1.0
-            flip_matrix[3, 0] = 1.0
+            pool.flip[0, 0] = -1.0
+            pool.flip[3, 0] = 1.0
 
         if flip_y:
-            flip_matrix[1, 1] = -1.0
-            flip_matrix[3, 1] = 1.0
-        matrix = np.matmul(matrix, flip_matrix)
+            pool.flip[1, 1] = -1.0
+            pool.flip[3, 1] = 1.0
+        matrix = np.matmul(matrix, pool.flip)
 
     # Step 1: Apply origin offset (move origin to 0,0)
-    origin_offset_matrix = np.identity(4, dtype=np.float32)
-    origin_offset_matrix[3, 0] = -origin.x
-    origin_offset_matrix[3, 1] = -origin.y
-    matrix = np.matmul(matrix, origin_offset_matrix)
+    pool.reset(pool.origin)
+    pool.origin[3, 0] = -origin.x
+    pool.origin[3, 1] = -origin.y
+    matrix = np.matmul(matrix, pool.origin)
 
     # Step 3: Skew
     if skew_x != 0.0 or skew_y != 0.0:
-        skew_matrix = np.identity(4, dtype=np.float32)
-        skew_matrix[0, 1] = np.tan(np.radians(skew_x))
-        skew_matrix[1, 0] = np.tan(np.radians(skew_y))
-        matrix = np.matmul(matrix, skew_matrix)
+        pool.reset(pool.skew)
+        pool.skew[0, 1] = np.tan(np.radians(skew_x))
+        pool.skew[1, 0] = np.tan(np.radians(skew_y))
+        matrix = np.matmul(matrix, pool.skew)
 
     # Step 4: Scale
-    scale_matrix = np.identity(4, dtype=np.float32)
-    scale_matrix[0, 0] = size.x * scale
-    scale_matrix[1, 1] = size.y * scale
-    scale_matrix[2, 2] = scale
-    matrix = np.matmul(matrix, scale_matrix)
+    pool.reset(pool.scale)
+    pool.scale[0, 0] = size.x * scale
+    pool.scale[1, 1] = size.y * scale
+    pool.scale[2, 2] = scale
+    matrix = np.matmul(matrix, pool.scale)
 
     # Step 5: Rotation
     if rotation != 0.0:
-        rotation_matrix = np.identity(4, dtype=np.float32)
+        pool.reset(pool.rotation)
         rad = np.radians(rotation)
         cos_r = np.cos(rad)
         sin_r = np.sin(rad)
-        rotation_matrix[0, 0] = cos_r
-        rotation_matrix[0, 1] = -sin_r
-        rotation_matrix[1, 0] = sin_r
-        rotation_matrix[1, 1] = cos_r
-        matrix = np.matmul(matrix, rotation_matrix)
+        pool.rotation[0, 0] = cos_r
+        pool.rotation[0, 1] = -sin_r
+        pool.rotation[1, 0] = sin_r
+        pool.rotation[1, 1] = cos_r
+        matrix = np.matmul(matrix, pool.rotation)
 
     # Step 6: Final translation to world space
-    translation_matrix = np.identity(4, dtype=np.float32)
-    translation_matrix[3, 0] = (position.x + origin.x * size.x) * scale + offset.x
-    translation_matrix[3, 1] = (position.y + origin.y * size.y) * scale + offset.y
-    matrix = np.matmul(matrix, translation_matrix)
+    pool.reset(pool.translation)
+    pool.translation[3, 0] = (position.x + origin.x * size.x) * scale + offset.x
+    pool.translation[3, 1] = (position.y + origin.y * size.y) * scale + offset.y
+    matrix = np.matmul(matrix, pool.translation)
 
 
     return matrix
@@ -338,10 +385,12 @@ def is_inside_rotated_square(mouse, box_center, box_size):
 
 
 matrices = {
+    "uv": Vec4(0,0,1,1),
+    "uv_flipped_v": Vec4(0,0,-1,1),
     "normal": [
         [1, 0, 0, 0],
         [0, 1, 0, 0],
-        [1, 0, 1, 0],
+        [0, 0, 1, 0],
         [0, 0, 0, 1]
     ]
 }

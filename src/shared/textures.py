@@ -61,7 +61,7 @@ def load_texture(file):
     try:
         file = get_abs_path(file)
         texture_surface = pygame.image.load(file)
-        texture_data = pygame.image.tostring(texture_surface, "RGBA", 1)
+        texture_data = pygame.image.tostring(texture_surface, "RGBA", True)
         width, height = texture_surface.get_size()
 
         texture = glGenTextures(1)

@@ -37,7 +37,7 @@ class RigidBody:
         self.acceleration += acc
         
     def get_velocity(self, dt=0):
-        if dt is not 0:
+        if dt != 0:
             return (self.position - self.position_old)/dt
         return self.position - self.position_old
 
@@ -78,7 +78,7 @@ class RigidBody:
     #     return pos + self.size * camera.get_scale() * 0.5
     
     def get_uv(self):
-        return matrices["normal"]
+        return matrices["uv"]
 
     def interact(self, other, is_body1_inside=False, is_body2_inside=False) -> bool:
         """
@@ -154,9 +154,7 @@ class TileBreakParticle(Particle):
         super().__init__((block_pos.x + random.random()) * TILE_SIZE, (block_pos.y + random.random()) * TILE_SIZE,
                          TILE_SIZE * size.x, TILE_SIZE * size.y, None, direction, max_age, gravity_enabled, is_immovable, is_physical)
         self.tile_type = tile_type
-        self.uv_offset = create_transformation_matrix(
-            position=Vec2(random.randint(0, 3), random.randint(0, 3)) * size,
-            size=size)
+        self.uv_offset = Vec4(random.randint(0, 3) * size.x, random.randint(0, 3) * size.y, *size.xy)
 
     def get_uv(self):
         return self.uv_offset
@@ -215,7 +213,7 @@ class LivingEntity(Entity):
     def apply_gravity(self):
         if self.gravity_enabled:
             d = norm(self.get_velocity().y)
-            direction = DirectionY(d) if d is not 0 else DirectionY.UP
+            direction = DirectionY(d) if d != 0 else DirectionY.UP
             self.accelerate(Vec2(0, self.get_gravity(direction)))
 
     def jump(self, dt):
@@ -268,8 +266,8 @@ class LivingEntity(Entity):
 
     def get_uv(self):
         if self.direction == DirectionX.LEFT:
-            return create_transformation_matrix(size=Vec2(1,1), flip_x=True)
-        return matrices["normal"]
+            return matrices["uv_flipped_v"]
+        return matrices["uv"]
         #     return [
         #         (self.animation_frame + 1) * self.size.x / self.texture_sheet_width, 0,
         #         self.animation_frame * self.size.x / self.texture_sheet_width, 1,

@@ -3,7 +3,6 @@ in vec2 vTexCoord;
 out vec4 FragColor;
 
 uniform sampler2D ourTexture;
-uniform mat4 uvTransform;
 uniform vec4 fogColor;
 uniform float transparency;
 
@@ -18,4 +17,6 @@ void main() {
 //    FragColor = vec4(vec3(1, 1, 1) - col, color.a);
 
     FragColor = vec4(mix(color.rgb, fogColor.rgb, fogColor.a), color.a);
+//    FragColor = vec4(1,1,1,1);
+
 }

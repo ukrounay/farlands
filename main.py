@@ -2,12 +2,41 @@ import threading
 import pygame.time
 from src.client.client import Client
 from src.client.renderer import *
-from src.client.world_rendering import draw_cursor, draw_world
+from src.client.screens import Screen, TextLabel
+from src.client.world_rendering import draw_cursor, draw_world, draw_world_optimized
 from src.shared.combat.bullet import Bullet
 from src.shared.npc.npcs import PlayerNPC
 from src.shared.textures import *
 from src.shared.world import World
 import ctypes
+
+# import tracemalloc
+# tracemalloc.start()
+
+# import gc
+# from collections import Counter
+#
+# def log_memory_stats():
+#     counts = Counter(type(obj).__name__ for obj in gc.get_objects())
+#     print(counts.most_common(10))
+#     gc.collect()
+#     vec = gc.get_objects()
+#     print(any(isinstance(obj, Vec2) for obj in vec))  # Should be False if no refs remain
+#
+#
+# import objgraph
+#
+# def make_vec2_graph():
+#     # Find the most common types
+#     objgraph.show_most_common_types()
+#
+#     # Pick one leaked type
+#     objgraph.show_backrefs(
+#         objgraph.by_type('Vec2')[0],
+#         max_depth=3,
+#         filename='refs.png'
+#     )
+
 
 try:
     ctypes.windll.user32.SetProcessDPIAware()
@@ -42,6 +71,20 @@ pygame.mouse.set_visible(False) # Hide cursor here
 clock = pygame.time.Clock()
 
 
+def get_debug_text():
+    text = []
+    if clock is not None:
+        text.append(f"FPS: {clock.get_fps():.2f}")
+    if client.server_clock is not None:
+        text.append(f"TPS: {client.server_clock.get_fps():.2f}")
+    player = client.player
+    if player is not None:
+        text.extend([
+            f"pos (world): [x: {player.position.x:.0f} y: {player.position.y:.0f}]",
+            f"pos (map): [x: {player.position.x/TILE_SIZE:.0f} y: {player.position.y/TILE_SIZE:.0f}]",
+            f"vel: [x: {player.get_velocity().x:} y: {player.get_velocity().y:}]",
+        ])
+    return text
 
 # Enable blending to handle transparency
 glEnable(GL_BLEND)
@@ -133,6 +176,19 @@ def game_logic_thread(flags, client: Client):
                         PlayerNPC(client.world, pos.x, pos.y, 12, 29,
                                     client.textures["entities"]['player'][0], 50),
                         pos.x/TILE_SIZE)
+
+            if keys[K_F3]:
+                pass
+                # memory profiling
+                # snapshot = tracemalloc.take_snapshot()
+                # top_stats = snapshot.statistics('lineno')
+                #
+                # print("[ Топ 10 джерел витрат памʼяті ]")
+                # for stat in top_stats[:10]:
+                #     print(stat)
+
+                # log_memory_stats()
+                # make_vec2_graph()
 
             client.input_flags["key_pressed"] = False
 
@@ -235,15 +291,19 @@ while server_flags[0] or running:
         while time_animation_goes < logo_animation_time:
             glClear(GL_COLOR_BUFFER_BIT)
             t = parametric_blend(time_animation_goes/logo_animation_time)
-            client.renderer.draw_quad(client.renderer.default_shader_uniforms, logo[0], matrices["normal"],
+            client.renderer.draw_quad(logo[0],
                   create_transformation_matrix(
                       screen_size / 2,
-                      Vec2(logo[1], logo[2])*(t*0.1+0.8)), 1-t)
+                      Vec2(logo[1], logo[2])*(t*0.1+0.8)), transparency=1-t)
             pygame.display.flip()
             time_animation_goes = pygame.time.get_ticks() - start_time
 
 
         client.initialize()
+
+        client.screens["debug"] = Screen(None, [
+            TextLabel(16,16, Vec2(), client.renderer.default_font, "")
+        ], [])
 
         client.play_sound("fx", "start")
 
@@ -252,10 +312,10 @@ while server_flags[0] or running:
         while time_animation_goes < logo_animation_time:
             glClear(GL_COLOR_BUFFER_BIT)
             t = parametric_blend(time_animation_goes/logo_animation_time)
-            client.renderer.draw_quad(client.renderer.default_shader_uniforms, logo[0], matrices["normal"],
+            client.renderer.draw_quad(logo[0],
                   create_transformation_matrix(
                       screen_size / 2,
-                      Vec2(logo[1], logo[2])*((1-t)*0.1+0.8)), t)
+                      Vec2(logo[1], logo[2])*((1-t)*0.1+0.8)), transparency=t)
             pygame.display.flip()
             time_animation_goes = pygame.time.get_ticks() - start_time
 
@@ -276,10 +336,11 @@ while server_flags[0] or running:
         pygame.display.flip()
         continue
 
+    client.debug_text = get_debug_text()
+
     draw_world(client, clock, dt)
     draw_cursor(client, CursorType.CROSSHAIR)
 
-    # Update display
     pygame.display.flip()
 
 pygame.quit()
