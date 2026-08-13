@@ -56,11 +56,13 @@ class Client:
     loaded: float
 
     def __init__(self, default_font):
+        self.screen_handlers = []
         self.debug_text = [""]
         self.cheat_inventory = None
         self.items = None
         self.default_font = default_font
         self.screens = {}
+        self.screen_handlers = []
         self.input_flags = {
             "key_pressed": False,
             "scroll_d": 0,
@@ -93,6 +95,7 @@ class Client:
         self.preferences = {
             "fullscreen": False
         }
+        self.mouse_inventory = None
 
     def get_loaded(self):
         return self.loaded

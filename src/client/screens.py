@@ -20,7 +20,7 @@ class Image(RigidBody):
     def get_pos(self, screen_size):
         return self.pos_px
 
-    def get_offset(self, screen_size):
+    def get_offset(self, screen_size: Vec2):
         return self.offset + self.offset_pr * screen_size
 
     def update_model_matrix(self):
@@ -63,6 +63,24 @@ class Screen:
         for button in self.buttons:
             button.draw(renderer, screen_size, scale, button.is_hovered(screen_size, mouse_pos, scale, centered), centered)
 
+# class HandledScreen(Screen):
+#     def __init__(self, bg: Image | None, images, buttons, screen_handler):
+#         super().__init__(bg, images, buttons)
+#         self.screen_handler = screen_handler
+#
+#     def get_handler(self):
+#         return self.screen_handler
+
+class ScreenHandler:
+    def __init__(self, screen):
+        self.screen = screen
+
+    def get_screen(self):
+        return self.screen
+
+    def update(self, client):
+        pass
+
 
 class ButtonForm(enum.Enum):
     RECT = 1
@@ -75,10 +93,10 @@ class Button(Image):
         # if text != "":
         #     self.children += TextLabel()
 
-    def is_pressed(self, mouse_pressed, screen_size, mouse_pos, scale):
+    def is_pressed(self, mouse_pressed, screen_size: Vec2, mouse_pos, scale):
         return mouse_pressed and self.is_hovered(screen_size, mouse_pos, scale)
 
-    def is_hovered(self, screen_size, mouse_pos, scale, centered=True):
+    def is_hovered(self, screen_size: Vec2, mouse_pos, scale, centered=True):
         of = self.get_offset(screen_size)
         pos = self.get_pos(screen_size) * scale + of
         size = self.size * scale

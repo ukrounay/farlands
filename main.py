@@ -3,7 +3,7 @@ import pygame.time
 from src.client.client import Client
 from src.client.renderer import *
 from src.client.screens import Screen, TextLabel
-from src.client.world_rendering import draw_cursor, draw_world, draw_world_optimized
+from src.client.world_rendering import draw_cursor, draw_world
 from src.shared.combat.bullet import Bullet
 from src.shared.npc.npcs import PlayerNPC
 from src.shared.textures import *
@@ -195,6 +195,9 @@ def game_logic_thread(flags, client: Client):
         if client.world is None:
 
             # main menu
+
+            for handler in client.screen_handlers:
+                handler.update(client)
 
             play_button = client.screens["main_menu"].buttons[0]
             play = play_button.is_pressed(mouse_clicked, screen_size, client.mouse_pos, client.camera.get_scale())

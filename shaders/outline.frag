@@ -43,8 +43,8 @@ void main() {
         color.a *= (1.0 - transparency);
     }
 
-//    FragColor = vec4(mix(color.rgb, fogColor.rgb, fogColor.a), color.a);
-    FragColor = vec4(1,1,1,1);
+    FragColor = vec4(mix(color.rgb, fogColor.rgb, fogColor.a), color.a);
+//    FragColor = vec4(1,1,1,1);
 
 //    FragColor = color;
 }

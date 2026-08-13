@@ -91,13 +91,41 @@ class Vec4:
         self.rgb = [r, g, b]
         self.rgba = [r, g, b, a]
 
-    def transform(self, other):
+    def combine(self, other):
+        x0, y0, x1, y1 = self.r, self.g, self.b, self.a
+        x2, y2, x3, y3 = other.r, other.g, other.b, other.a
+        w1 = x1 - x0
+        h1 = y1 - y0
+        w2 = x3 - x2
+        h2 = y3 - y2
+
         return Vec4(
-            self.r + other.r,
-            self.g + other.g,
-            self.b * other.b,
-            self.a * other.a,
+            self.r + other.r,   # new x0
+            self.g + other.g,   # new y0
+            self.r + other.r + w1 * w2,   # new x1
+            self.g + other.g + h1 * h2,   # new y1
         )
+    def transform(self, other):
+        translate_original = Vec2(self.r, self.g)
+        translate = Vec2(other.r, other.g)
+        size_original = Vec2(self.b - self.r, self.a - self.g)
+        size = Vec2(other.b, other.a)
+        return Vec4(
+            translate_original.x + translate.x,   # new x0
+            translate_original.y + translate.y,   # new y0
+            translate_original.x + translate.x + size_original.x * size.x,   # new x1
+            translate_original.y + translate.y + size_original.y * size.y,   # new y1
+        )
+    # def transform(self, other):
+    #     return Vec4(
+    #         other.r + self.r * other.b,  # new x0
+    #         other.g + self.g * other.a,  # new y0
+    #         other.r + self.b * other.b,  # new x1
+    #         other.g + self.a * other.a,  # new y1
+    #     )
+
+    def __str__(self) -> str:
+        return f"{self.r}, {self.g}, {self.b}, {self.a}"
 
 
 class Vec2i:
@@ -385,14 +413,10 @@ def is_inside_rotated_square(mouse, box_center, box_size):
 
 
 matrices = {
-    "uv": Vec4(0,0,1,1),
-    "uv_flipped_v": Vec4(0,0,-1,1),
-    "normal": [
-        [1, 0, 0, 0],
-        [0, 1, 0, 0],
-        [0, 0, 1, 0],
-        [0, 0, 0, 1]
-    ]
+    "uv": Vec4(0,0,
+               1,1),
+    "uv_flipped_v": Vec4(1,0,
+                         0,1)
 }
 
 

@@ -125,7 +125,7 @@ class Renderer:
             self.bound_texture = texture
 
 
-    def draw_quad(self, texture, model_matrix, uv_transform: Vec4 = Vec4(0,0,1,1), transparency=0, shader_program_name=""):
+    def draw_quad(self, texture, model_matrix, uv_transform: Vec4 = Vec4(0,0,1,1), transparency=0, shader_program_name="default"):
         """
         Draw a textured quad with the specified transformation
             :param shader_program_name: shader program name to override default
@@ -134,7 +134,7 @@ class Renderer:
             :param model_matrix: 4x4 model transformation matrix
             :param transparency: from 0 = fully opaque, to 1 = fully transparent
         """
-        self.use_shader("default")
+        self.use_shader(shader_program_name)
         self.use_texture(texture)
         u_loc = self.get_current_uniform_locations()
         glUniform4f(u_loc["uvTransform"], *uv_transform.rgba)

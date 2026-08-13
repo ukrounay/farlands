@@ -1,5 +1,3 @@
-import pygame
-
 from src.client.renderer import *
 from src.shared.combat.bullet import Projectile
 from src.shared.npc.npcs import PlayerNPC
@@ -97,7 +95,7 @@ def draw_world(client, clock, dt):
             def in_bounds(elem):
                 pos = elem.position
                 return abs(followed_body_pos.x - pos.x) < screen_size.x * 0.55 \
-                    or abs(followed_body_pos.y - pos.y) < screen_size.y * 0.55
+                    and abs(followed_body_pos.y - pos.y) < screen_size.y * 0.55
 
             for body in filter(in_bounds, client.world.environment.bodies):
 
@@ -137,11 +135,12 @@ def draw_world(client, clock, dt):
                     current_texture_size = Vec2(client.textures["entities"][body.entity_type][texture_number][1],
                                                 client.textures["entities"][body.entity_type][texture_number][2])
                     body.animation_frames = max(1, int(current_texture_size.x / texture_size.x))
+
                     frame_uv = Vec4(
-                        int(body.animation_frame) * texture_size.x / current_texture_size.x, 0,
-                        texture_size.x / current_texture_size.x, 1
+                        int(body.animation_frame) / body.animation_frames, 0,
+                        1/body.animation_frames, 1
                     )
-                    uv.transform(frame_uv)
+                    uv = uv.transform(frame_uv)
 
                     texture = client.textures["entities"][body.entity_type][texture_number][0]
                     size = texture_size
@@ -160,7 +159,7 @@ def draw_world(client, clock, dt):
                                     (1 / scale) * outline_thickness)
                         glUniform4f(client.renderer.get_current_uniform_locations()["outlineColor"], *outline_color)
                         client.renderer.draw_quad(texture,
-                                                  create_transformation_matrix(pos, size, offset, scale), uv, transparency=transparency)
+                                                  create_transformation_matrix(pos, size, offset, scale), uv, transparency=transparency, shader_program_name="outline")
                         client.renderer.use_shader("default")
                     else:
                         client.renderer.draw_quad(texture,
@@ -247,7 +246,7 @@ def draw_world(client, clock, dt):
             if texture is not None:
                 client.renderer.draw_quad(texture,
                                           create_transformation_matrix(pos, size, client.camera.get_offset(),
-                                                                       client.camera.get_scale()), transparency=0.5)
+                                                                       client.camera.get_scale()), transparency=0.5, shader_program_name="outline")
     client.renderer.use_shader("default")
     glBindVertexArray(client.renderer.quad_vao)
     s = math.ceil(client.camera.get_scale() * 0.5)
@@ -349,207 +348,207 @@ def draw_world(client, clock, dt):
     del screen_size, followed_body, world_offset, start, end, cx_start, cy_start, cx_end, cy_end, followed_body_pos
 
 
-
-def draw_world_optimized(client, clock, dt):
-    screen_size = Vec2(client.screenWidth, client.screenHeight)
-    followed_body = client.player
-
-    # Update camera follow logic
-    client.camera.follow(followed_body, client.mouse_pos, dt)
-
-
-    # Cache scale and offset once per frame
-    cam_scale = client.camera.get_scale()
-    cam_offset = client.camera.get_offset()
-
-    # Cache player position once per frame (copy to avoid mutation issues)
-    followed_body_pos = followed_body.position.copy()
-
-    # Cache current time once per frame (for wave calculations)
-    current_time = pygame.time.get_ticks()
-
-    # Background layers rendering (cached fog alpha calc)
-    total_layers = len(client.background_layers)
-    for i, layer in enumerate(sorted(client.background_layers, key=lambda l: l.layer)):
-        fog_alpha = 0 if i == 1 else 0.1 + 0.4 * (1 - i / total_layers)
-        glUniform4f(client.renderer.get_current_uniform_locations()["fogColor"], 0.51, 0.42, 0.59, fog_alpha)
-
-        wave_angle = 0
-        if layer.waving:
-            wave_angle = math.sin(current_time / (1000 + i * 200) + i * 20) * 2
-
-        client.renderer.draw_image_cover(
-            layer.texture,
-            Vec2(layer.width, layer.height),
-            screen_size,
-            cam_scale,
-            0 if layer.is_immovable else layer.offset,
-            wave_angle
-        )
-
-    # Calculate camera world offsets and tile range once per frame
-    world_offset = cam_offset / cam_scale
-    start = (world_offset * -1) / TILE_SIZE
-    end = (screen_size - world_offset) / TILE_SIZE
-
-    cx_start, cy_start, _, _ = client.world.map_manager.get_local_coords(start.x, start.y)
-    cx_end, cy_end, _, _ = client.world.map_manager.get_local_coords(end.x, end.y)
-
-
-    # Iterate over layers (-1, 0, 1)
-    for layer in range(-1, 2):
-        # Set fog color per layer only once
-        if layer == -1:
-            glUniform4f(client.renderer.get_current_uniform_locations()["fogColor"], 0, 0, 0, 0.25)
-        elif layer == 0:
-            glUniform4f(client.renderer.get_current_uniform_locations()["fogColor"], 0, 0, 0, 0)
-
-        glBindVertexArray(client.renderer.non_centered_vao)
-
-        # Cache common texture lookup dicts outside inner loops
-        tiles_irregular = client.textures["tiles_irregular"]
-        tiles_regular = client.textures["tiles"]
-
-        render_meshes_layer = client.world.map_manager.render_meshes[layer]
-
-        # Loop over chunks visible on screen
-        for x in range(cx_start, cx_end):
-            for y in range(cy_start, cy_end):
-                chunk_pos = (x, y)
-                if chunk_pos in render_meshes_layer:
-                    for tile_type, meshes in render_meshes_layer[chunk_pos].items():
-                        if tile_type in tiles_irregular:
-                            texture = tiles_irregular[tile_type]
-                            tex_id, tex_w, tex_h = texture
-                            half_tex_x = (tex_w - TILE_SIZE) / 2
-                            for body in meshes:
-                                start_tile = Vec2i.from_vec2(body.position / TILE_SIZE)
-                                end_tile = Vec2i.from_vec2((body.position + body.size) / TILE_SIZE)
-                                for tx in range(start_tile.x, end_tile.x):
-                                    for ty in range(start_tile.y, end_tile.y):
-                                        pos = Vec2(tx, ty) * TILE_SIZE
-                                        render_start = pos - Vec2(half_tex_x, tex_h - TILE_SIZE)
-                                        model_matrix = create_transformation_matrix(render_start, Vec2(tex_w, tex_h),
-                                                                                    cam_offset, cam_scale)
-                                        client.renderer.draw_quad(tex_id, model_matrix)
-                        else:
-                            tex_id = tiles_regular[tile_type][0]
-                            for body in meshes:
-                                # Precompute model matrix for body only once per body (avoids nested calls)
-                                pos_matrix = create_transformation_matrix(body.position, body.size, cam_offset,
-                                                                          cam_scale)
-                                size_matrix = Vec4(0,0, body.size.x / TILE_SIZE, body.size.y / TILE_SIZE)
-                                client.renderer.draw_quad(tex_id, pos_matrix, size_matrix)
-                else:
-                    client.world.map_manager.mark_chunk_dirty(x, y)
-
-        # Layer 0 special: draw entities and particles, etc.
-        if layer == 0:
-            def in_bounds(elem):
-                pos = elem.position
-                dx = abs(followed_body_pos.x - pos.x)
-                dy = abs(followed_body_pos.y - pos.y)
-                return dx < screen_size.x * 0.55 or dy < screen_size.y * 0.55
-
-            # Cache camera scale and offset once for this loop
-            scale = cam_scale
-            offset = cam_offset
-
-            for body in filter(in_bounds, client.world.environment.bodies):
-                pos = body.position if body != followed_body else followed_body_pos
-
-                draw_outlined = False
-                outline_color = [1.0, 1.0, 1.0, 1.0]
-                outline_thickness = 2
-                transparency = 0
-                texture = body.texture
-                uv = body.get_uv()
-                size = body.size
-
-                # Entity-specific logic
-                if isinstance(body, Particle) or issubclass(type(body), Particle):
-                    transparency = body.get_transparency()
-                    if isinstance(body, TileBreakParticle):
-                        texture = tiles_regular[body.tile_type][0]
-
-                elif isinstance(body, ItemStackEntity):
-                    texture = tiles_regular[body.stack.item.tile_type][0]
-                    offset_y = int(
-                        (1 + math.sin(current_time / 250 + pos.x + pos.y + texture * 10)) * TILE_SIZE * 0.25 + 0.25)
-                    offset = Vec2(offset.x, offset.y - offset_y)
-                    draw_outlined = True
-
-                elif isinstance(body, LivingEntity) or issubclass(type(body), LivingEntity):
-                    texture_number = body.state.value
-                    textures_for_entity = client.textures["entities"][body.entity_type]
-                    if texture_number >= len(textures_for_entity):
-                        texture_number = 0
-
-                    base_texture_size = Vec2(textures_for_entity[0][1], textures_for_entity[0][2])
-                    current_texture_size = Vec2(textures_for_entity[texture_number][1],
-                                                textures_for_entity[texture_number][2])
-                    body.texture_size = base_texture_size
-                    body.animation_frames = max(1, int(current_texture_size.x / base_texture_size.x))
-
-                    frame_uv = create_transformation_matrix(
-                        Vec2(int(body.animation_frame) * base_texture_size.x / current_texture_size.x, 0),
-                        Vec2(base_texture_size.x / current_texture_size.x, 1)
-                    )
-                    uv = np.matmul(uv, frame_uv)
-                    texture = textures_for_entity[texture_number][0]
-                    size = base_texture_size
-                    pos += Vec2((body.size.x - base_texture_size.x) / 2, body.size.y - base_texture_size.y)
-
-                    if body.is_stunted:
-                        draw_outlined = True
-                        outline_color = [1.0, 0.2, 0.1, 1.0]
-
-                if isinstance(body, Projectile) or issubclass(type(body), Projectile):
-                    draw_outlined = True
-
-                if texture is not None:
-                    if draw_outlined:
-                        client.renderer.use_shader("outline")
-                        glUniform1f(client.renderer.get_current_uniform_locations()["outlineThickness"],
-                                    (1 / scale) * outline_thickness)
-                        glUniform4f(client.renderer.get_current_uniform_locations()["outlineColor"], *outline_color)
-                        model_matrix = create_transformation_matrix(pos, size, offset, scale)
-                        client.renderer.draw_quad(texture, model_matrix,
-                                                  transparency=transparency)
-                        client.renderer.use_shader("default")
-                    else:
-                        model_matrix = create_transformation_matrix(pos, size, offset, scale)
-                        client.renderer.draw_quad(texture, model_matrix,
-                                                  transparency=transparency)
-
-                # Draw text bubble
-                # text_bubble = body.get_text_bubble()
-                # if text_bubble:
-                #     text_surface = client.default_font.render(text_bubble, True, (255, 255, 255, 255))
-                #     texture_id, text_width, text_height = surface_to_texture(text_surface)
-                #     size = Vec2(text_width, text_height)
-                #     model_matrix = create_transformation_matrix(pos * scale, size,
-                #                                                 offset - Vec2((size.x - body.size.x) / 2,
-                #                                                               size.y + DEBUG_FONT_SIZE))
-                #     client.renderer.draw_quad(client.renderer.default_shader_uniforms, texture_id, matrices["normal"],
-                #                               model_matrix)
-
-                # Draw item in hand (LivingEntity only)
-                if isinstance(body, LivingEntity) or issubclass(type(body), LivingEntity):
-                    stack = body.inventory.get_current()
-                    if stack:
-                        t = tiles_regular[stack.item.tile_type]
-                        size = Vec2(t[1], t[2]) / (
-                            max(t[1], t[2]) / TILE_SIZE if stack.item.tile_type in tiles_irregular else 1)
-                        rotation = (followed_body.position * scale + offset - client.mouse_pos).get_rotation_deg()
-                        flip = False
-                        if rotation < -90 or rotation > 90:
-                            rotation += 180
-                            flip = True
-                        pos_hand = pos + Vec2(0, -size.y * 0.7)
-                        model_matrix = create_transformation_matrix(pos_hand, size, offset, scale)
-                        uv_hand = matrices["normal"]
-                        if flip:
-                            uv_hand = np.matmul(uv_hand, create_transformation_matrix(Vec2(1, 0), Vec2(-1, 1)))
-                        client.renderer.draw_quad(t[0], model_matrix)
-
+#
+# def draw_world_optimized(client, clock, dt):
+#     screen_size = Vec2(client.screenWidth, client.screenHeight)
+#     followed_body = client.player
+#
+#     # Update camera follow logic
+#     client.camera.follow(followed_body, client.mouse_pos, dt)
+#
+#
+#     # Cache scale and offset once per frame
+#     cam_scale = client.camera.get_scale()
+#     cam_offset = client.camera.get_offset()
+#
+#     # Cache player position once per frame (copy to avoid mutation issues)
+#     followed_body_pos = followed_body.position.copy()
+#
+#     # Cache current time once per frame (for wave calculations)
+#     current_time = pygame.time.get_ticks()
+#
+#     # Background layers rendering (cached fog alpha calc)
+#     total_layers = len(client.background_layers)
+#     for i, layer in enumerate(sorted(client.background_layers, key=lambda l: l.layer)):
+#         fog_alpha = 0 if i == 1 else 0.1 + 0.4 * (1 - i / total_layers)
+#         glUniform4f(client.renderer.get_current_uniform_locations()["fogColor"], 0.51, 0.42, 0.59, fog_alpha)
+#
+#         wave_angle = 0
+#         if layer.waving:
+#             wave_angle = math.sin(current_time / (1000 + i * 200) + i * 20) * 2
+#
+#         client.renderer.draw_image_cover(
+#             layer.texture,
+#             Vec2(layer.width, layer.height),
+#             screen_size,
+#             cam_scale,
+#             0 if layer.is_immovable else layer.offset,
+#             wave_angle
+#         )
+#
+#     # Calculate camera world offsets and tile range once per frame
+#     world_offset = cam_offset / cam_scale
+#     start = (world_offset * -1) / TILE_SIZE
+#     end = (screen_size - world_offset) / TILE_SIZE
+#
+#     cx_start, cy_start, _, _ = client.world.map_manager.get_local_coords(start.x, start.y)
+#     cx_end, cy_end, _, _ = client.world.map_manager.get_local_coords(end.x, end.y)
+#
+#
+#     # Iterate over layers (-1, 0, 1)
+#     for layer in range(-1, 2):
+#         # Set fog color per layer only once
+#         if layer == -1:
+#             glUniform4f(client.renderer.get_current_uniform_locations()["fogColor"], 0, 0, 0, 0.25)
+#         elif layer == 0:
+#             glUniform4f(client.renderer.get_current_uniform_locations()["fogColor"], 0, 0, 0, 0)
+#
+#         glBindVertexArray(client.renderer.non_centered_vao)
+#
+#         # Cache common texture lookup dicts outside inner loops
+#         tiles_irregular = client.textures["tiles_irregular"]
+#         tiles_regular = client.textures["tiles"]
+#
+#         render_meshes_layer = client.world.map_manager.render_meshes[layer]
+#
+#         # Loop over chunks visible on screen
+#         for x in range(cx_start, cx_end):
+#             for y in range(cy_start, cy_end):
+#                 chunk_pos = (x, y)
+#                 if chunk_pos in render_meshes_layer:
+#                     for tile_type, meshes in render_meshes_layer[chunk_pos].items():
+#                         if tile_type in tiles_irregular:
+#                             texture = tiles_irregular[tile_type]
+#                             tex_id, tex_w, tex_h = texture
+#                             half_tex_x = (tex_w - TILE_SIZE) / 2
+#                             for body in meshes:
+#                                 start_tile = Vec2i.from_vec2(body.position / TILE_SIZE)
+#                                 end_tile = Vec2i.from_vec2((body.position + body.size) / TILE_SIZE)
+#                                 for tx in range(start_tile.x, end_tile.x):
+#                                     for ty in range(start_tile.y, end_tile.y):
+#                                         pos = Vec2(tx, ty) * TILE_SIZE
+#                                         render_start = pos - Vec2(half_tex_x, tex_h - TILE_SIZE)
+#                                         model_matrix = create_transformation_matrix(render_start, Vec2(tex_w, tex_h),
+#                                                                                     cam_offset, cam_scale)
+#                                         client.renderer.draw_quad(tex_id, model_matrix)
+#                         else:
+#                             tex_id = tiles_regular[tile_type][0]
+#                             for body in meshes:
+#                                 # Precompute model matrix for body only once per body (avoids nested calls)
+#                                 pos_matrix = create_transformation_matrix(body.position, body.size, cam_offset,
+#                                                                           cam_scale)
+#                                 size_matrix = Vec4(0,0, body.size.x / TILE_SIZE, body.size.y / TILE_SIZE)
+#                                 client.renderer.draw_quad(tex_id, pos_matrix, size_matrix)
+#                 else:
+#                     client.world.map_manager.mark_chunk_dirty(x, y)
+#
+#         # Layer 0 special: draw entities and particles, etc.
+#         if layer == 0:
+#             def in_bounds(elem):
+#                 pos = elem.position
+#                 dx = abs(followed_body_pos.x - pos.x)
+#                 dy = abs(followed_body_pos.y - pos.y)
+#                 return dx < screen_size.x * 0.55 or dy < screen_size.y * 0.55
+#
+#             # Cache camera scale and offset once for this loop
+#             scale = cam_scale
+#             offset = cam_offset
+#
+#             for body in filter(in_bounds, client.world.environment.bodies):
+#                 pos = body.position if body != followed_body else followed_body_pos
+#
+#                 draw_outlined = False
+#                 outline_color = [1.0, 1.0, 1.0, 1.0]
+#                 outline_thickness = 2
+#                 transparency = 0
+#                 texture = body.texture
+#                 uv = body.get_uv()
+#                 size = body.size
+#
+#                 # Entity-specific logic
+#                 if isinstance(body, Particle) or issubclass(type(body), Particle):
+#                     transparency = body.get_transparency()
+#                     if isinstance(body, TileBreakParticle):
+#                         texture = tiles_regular[body.tile_type][0]
+#
+#                 elif isinstance(body, ItemStackEntity):
+#                     texture = tiles_regular[body.stack.item.tile_type][0]
+#                     offset_y = int(
+#                         (1 + math.sin(current_time / 250 + pos.x + pos.y + texture * 10)) * TILE_SIZE * 0.25 + 0.25)
+#                     offset = Vec2(offset.x, offset.y - offset_y)
+#                     draw_outlined = True
+#
+#                 elif isinstance(body, LivingEntity) or issubclass(type(body), LivingEntity):
+#                     texture_number = body.state.value
+#                     textures_for_entity = client.textures["entities"][body.entity_type]
+#                     if texture_number >= len(textures_for_entity):
+#                         texture_number = 0
+#
+#                     base_texture_size = Vec2(textures_for_entity[0][1], textures_for_entity[0][2])
+#                     current_texture_size = Vec2(textures_for_entity[texture_number][1],
+#                                                 textures_for_entity[texture_number][2])
+#                     body.texture_size = base_texture_size
+#                     body.animation_frames = max(1, int(current_texture_size.x / base_texture_size.x))
+#
+#                     frame_uv = create_transformation_matrix(
+#                         Vec2(int(body.animation_frame) * base_texture_size.x / current_texture_size.x, 0),
+#                         Vec2(base_texture_size.x / current_texture_size.x, 1)
+#                     )
+#                     uv = np.matmul(uv, frame_uv)
+#                     texture = textures_for_entity[texture_number][0]
+#                     size = base_texture_size
+#                     pos += Vec2((body.size.x - base_texture_size.x) / 2, body.size.y - base_texture_size.y)
+#
+#                     if body.is_stunted:
+#                         draw_outlined = True
+#                         outline_color = [1.0, 0.2, 0.1, 1.0]
+#
+#                 if isinstance(body, Projectile) or issubclass(type(body), Projectile):
+#                     draw_outlined = True
+#
+#                 if texture is not None:
+#                     if draw_outlined:
+#                         client.renderer.use_shader("outline")
+#                         glUniform1f(client.renderer.get_current_uniform_locations()["outlineThickness"],
+#                                     (1 / scale) * outline_thickness)
+#                         glUniform4f(client.renderer.get_current_uniform_locations()["outlineColor"], *outline_color)
+#                         model_matrix = create_transformation_matrix(pos, size, offset, scale)
+#                         client.renderer.draw_quad(texture, model_matrix,
+#                                                   transparency=transparency)
+#                         client.renderer.use_shader("default")
+#                     else:
+#                         model_matrix = create_transformation_matrix(pos, size, offset, scale)
+#                         client.renderer.draw_quad(texture, model_matrix,
+#                                                   transparency=transparency)
+#
+#                 # Draw text bubble
+#                 # text_bubble = body.get_text_bubble()
+#                 # if text_bubble:
+#                 #     text_surface = client.default_font.render(text_bubble, True, (255, 255, 255, 255))
+#                 #     texture_id, text_width, text_height = surface_to_texture(text_surface)
+#                 #     size = Vec2(text_width, text_height)
+#                 #     model_matrix = create_transformation_matrix(pos * scale, size,
+#                 #                                                 offset - Vec2((size.x - body.size.x) / 2,
+#                 #                                                               size.y + DEBUG_FONT_SIZE))
+#                 #     client.renderer.draw_quad(client.renderer.default_shader_uniforms, texture_id, matrices["normal"],
+#                 #                               model_matrix)
+#
+#                 # Draw item in hand (LivingEntity only)
+#                 if isinstance(body, LivingEntity) or issubclass(type(body), LivingEntity):
+#                     stack = body.inventory.get_current()
+#                     if stack:
+#                         t = tiles_regular[stack.item.tile_type]
+#                         size = Vec2(t[1], t[2]) / (
+#                             max(t[1], t[2]) / TILE_SIZE if stack.item.tile_type in tiles_irregular else 1)
+#                         rotation = (followed_body.position * scale + offset - client.mouse_pos).get_rotation_deg()
+#                         flip = False
+#                         if rotation < -90 or rotation > 90:
+#                             rotation += 180
+#                             flip = True
+#                         pos_hand = pos + Vec2(0, -size.y * 0.7)
+#                         model_matrix = create_transformation_matrix(pos_hand, size, offset, scale)
+#                         uv_hand = matrices["normal"]
+#                         if flip:
+#                             uv_hand = np.matmul(uv_hand, create_transformation_matrix(Vec2(1, 0), Vec2(-1, 1)))
+#                         client.renderer.draw_quad(t[0], model_matrix)
+#
