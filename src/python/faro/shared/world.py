@@ -1,8 +1,9 @@
 from collections import defaultdict
-from operator import contains
 
-from src.server.terrain import *
-from src.shared.physics.objects import *
+from faro.server.terrain import *
+from faro.shared.physics.objects import *
+from faro.shared.utilites import *
+
 
 class World:
 

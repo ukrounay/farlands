@@ -1,4 +1,3 @@
-import math
 import os
 from enum import Enum
 
@@ -9,9 +8,8 @@ from OpenGL.GLUT import c_void_p
 from OpenGL.raw.GL.VERSION.GL_2_0 import glUniform4f, glUseProgram, glUniform1f
 from OpenGL.raw.GL.VERSION.GL_3_0 import glBindVertexArray
 
-from src.shared.globals import TILE_SIZE, DEBUG_FONT_SIZE, UI_GAP
-from src.shared.textures import uv_transform_matrix
-from src.shared.utilites import Vec2, matrices, create_transformation_matrix, Vec4
+from faro.shared.globals import TILE_SIZE
+from faro.shared.utilites import create_transformation_matrix, Vec4
 
 
 def create_quad_buffers(centered=True):

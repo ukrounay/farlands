@@ -2,9 +2,9 @@ import enum
 
 import pygame
 
-from src.client.renderer import *
-from src.shared.physics.objects import RigidBody
-from src.shared.utilites import *
+from faro.client.renderer import *
+from faro.shared.physics.objects import RigidBody
+from faro.shared.utilites import *
 
 class Image(RigidBody):
     def __init__(self, x, y, offset, width, height, texture, gravity_enabled=False, is_immovable=True, is_physical=False):

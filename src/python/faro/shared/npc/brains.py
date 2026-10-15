@@ -1,7 +1,6 @@
 import random
-from enum import *
 
-from src.shared.utilites import *
+from faro.shared.utilites import *
 
 MAX_JUMP_HEIGHT = 1
 MAX_FALL_HEIGHT = 4

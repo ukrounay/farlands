@@ -2,12 +2,12 @@ import re
 import subprocess
 import sys
 
-from src.client.player import Player
-from src.client.screens import *
-from src.shared.physics.objects import *
-from src.shared.sounds import load_sounds_from_json
-from src.shared.textures import *
-from src.shared.world import World
+from faro.client.player import Player
+from faro.client.screens import *
+from faro.shared.physics.objects import Camera
+from faro.shared.sounds import load_sounds_from_json
+from faro.shared.textures import *
+from faro.shared.world import World
 
 import json
 

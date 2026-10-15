@@ -7,8 +7,8 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QDialog,
     QListWidget, QListWidgetItem
 )
-from src.shared.physics.objects import RigidBody  # your physics base class
-import main  # assuming client is inside main.py
+from src.python import RigidBody  # your physics base class
+from src.python import main
 
 
 def get_subclasses(module_path, base_class):
@@ -48,7 +48,7 @@ def is_src_object(obj):
     """Check if object's class is from /src directory."""
     try:
         module_file = inspect.getfile(obj.__class__)
-        return os.path.abspath("src") in os.path.abspath(module_file)
+        return os.path.abspath("../src") in os.path.abspath(module_file)
     except Exception:
         return False
 

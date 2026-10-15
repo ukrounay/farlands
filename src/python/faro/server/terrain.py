@@ -1,6 +1,6 @@
 from perlin_noise import PerlinNoise
 
-from src.shared.utilites import *
+from faro.shared.utilites import *
 
 
 

@@ -1,4 +1,4 @@
-from src.shared.physics.objects import Entity, LivingEntity
+from faro.shared.physics.objects import Entity, LivingEntity
 
 
 class Projectile(Entity):

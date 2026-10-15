@@ -1,7 +1,7 @@
-from src.shared.combat.bullet import Bullet
-from src.shared.globals import TILE_SIZE
-from src.shared.physics.objects import LivingEntity
-from src.shared.utilites import Vec2
+from faro.shared.combat.bullet import Bullet
+from faro.shared.globals import TILE_SIZE
+from faro.shared.physics.objects import LivingEntity
+from faro.shared.utilites import Vec2
 
 
 class Player(LivingEntity):

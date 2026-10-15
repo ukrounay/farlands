@@ -1,6 +1,6 @@
-from src.shared.utilites import *
-from src.shared.globals import *
-from src.shared.utilites import clamp, norm
+from faro.shared.utilites import *
+from faro.shared.globals import *
+from faro.shared.utilites import clamp, norm
 
 
 # -----------------------------

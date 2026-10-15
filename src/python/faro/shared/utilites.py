@@ -3,7 +3,7 @@ from enum import Enum
 
 import numpy as np
 
-from src.shared.globals import TILE_SIZE
+from faro.shared.globals import TILE_SIZE
 
 
 class Vec2:

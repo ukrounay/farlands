@@ -8,14 +8,6 @@ from numpy import ndarray, dtype
 from pygame.locals import *
 from OpenGL.GL import *
 
-from src.shared.globals import *
-from src.shared.utilites import *
-
-
-
-
-
-
 
 def get_abs_path(path):
     return path

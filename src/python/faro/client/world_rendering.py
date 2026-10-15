@@ -1,8 +1,7 @@
-from src.client.renderer import *
-from src.shared.combat.bullet import Projectile
-from src.shared.npc.npcs import PlayerNPC
-from src.shared.physics.objects import *
-from src.shared.utilites import *
+from faro.client.renderer import *
+from faro.shared.combat.bullet import Projectile
+from faro.shared.npc.npcs import PlayerNPC
+from faro.shared.utilites import *
 
 
 def draw_cursor(client, cursor_type=CursorType.DEFAULT):

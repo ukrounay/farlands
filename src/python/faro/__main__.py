@@ -1,14 +1,20 @@
-import threading
-import pygame.time
-from src.client.client import Client
-from src.client.renderer import *
-from src.client.screens import Screen, TextLabel
-from src.client.world_rendering import draw_cursor, draw_world
-from src.shared.combat.bullet import Bullet
-from src.shared.npc.npcs import PlayerNPC
-from src.shared.textures import *
-from src.shared.world import World
 import ctypes
+import os
+import threading
+
+import pygame.time
+from pygame.locals import *
+from OpenGL.GL import *
+
+from faro.client.client import Client
+from faro.client.renderer import CursorType
+from faro.client.screens import Screen, TextLabel
+from faro.client.world_rendering import draw_cursor, draw_world
+from faro.shared.globals import *
+from faro.shared.npc.npcs import PlayerNPC
+from faro.client.resources import ResourceManager
+from faro.shared.utilites import Vec2, parametric_blend, create_transformation_matrix
+from faro.shared.world import World
 
 # import tracemalloc
 # tracemalloc.start()
@@ -57,11 +63,13 @@ scale = 1.0
 # Initialize Pygame
 pygame.init()
 screen = pygame.display.set_mode((INITIAL_SCREEN_WIDTH, INITIAL_SCREEN_HEIGHT), DOUBLEBUF | OPENGL)
-icon = pygame.image.load(get_abs_path('assets/icon.png'))
-logo = load_texture('assets/logo.png')
-backup_bg = load_texture('assets/create_bg.png')
-tile_bg = load_texture('assets/textures/bg_tile.png')
-font = pygame.font.Font('assets/fonts/elemental.ttf', DEBUG_FONT_SIZE)
+resources = ResourceManager()
+
+icon = pygame.image.load(resources.resolve('faro:icon.png'))
+logo = resources.load_texture('faro:logo.png')
+backup_bg = resources.load_texture('faro:create_bg.png')
+tile_bg = resources.load_texture('faro:bg_tile.png')
+font = pygame.font.Font('src/resources/assets/fonts/elemental.ttf', DEBUG_FONT_SIZE)
 pygame.display.set_icon(icon)
 pygame.display.set_caption('Farlands')
 
@@ -243,96 +251,99 @@ server_thread = threading.Thread(target=game_logic_thread, args=([flags], client
 server_thread.start()
 
 
-while flags[0]:
+def run():
+    while flags[0]:
 
-    dt = clock.tick() / 1000.0
-    now = pygame.time.get_ticks()
+        dt = clock.tick() / 1000.0
+        now = pygame.time.get_ticks()
 
-    for event in pygame.event.get():
-        if event.type == QUIT:
-            flags[0] = False
-            break
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                flags[0] = False
+                break
 
-        elif event.type == VIDEORESIZE and now - last_toggle_time > TOGGLE_COOLDOWN_MS:
-            client.setup_screen(*event.size)
+            elif event.type == VIDEORESIZE and now - last_toggle_time > TOGGLE_COOLDOWN_MS:
+                client.setup_screen(*event.size)
 
-        elif event.type == pygame.KEYDOWN:
-            client.input_flags["key_pressed"] = True
-            if event.key == client.keybinds['fullscreen']:
-                client.preferences['fullscreen'] = not client.preferences['fullscreen']
-                client.setup_screen(client.screenWidth, client.screenHeight)
-                last_toggle_time = now  # Record when we toggled fullscreen
-            elif event.key == client.keybinds['debug']:
-                client.is_debugging = not client.is_debugging
+            elif event.type == pygame.KEYDOWN:
+                client.input_flags["key_pressed"] = True
+                if event.key == client.keybinds['fullscreen']:
+                    client.preferences['fullscreen'] = not client.preferences['fullscreen']
+                    client.setup_screen(client.screenWidth, client.screenHeight)
+                    last_toggle_time = now  # Record when we toggled fullscreen
+                elif event.key == client.keybinds['debug']:
+                    client.is_debugging = not client.is_debugging
 
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            client.input_flags["mouse_clicked"] = True
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                client.input_flags["mouse_clicked"] = True
 
-        elif event.type == pygame.MOUSEWHEEL:
-            client.input_flags["scroll_d"] = event.y
+            elif event.type == pygame.MOUSEWHEEL:
+                client.input_flags["scroll_d"] = event.y
 
+        glBindVertexArray(client.renderer.quad_vao)
 
-    glBindVertexArray(client.renderer.quad_vao)
+        if not client.is_initialized:
 
-    if not client.is_initialized:
+            client.setup_screen(*pygame.display.get_window_size())
 
-        client.setup_screen(*pygame.display.get_window_size())
+            start_time = pygame.time.get_ticks()
+            time_animation_goes = 0
+            while time_animation_goes < logo_animation_time:
+                glClear(GL_COLOR_BUFFER_BIT)
+                t = parametric_blend(time_animation_goes / logo_animation_time)
+                client.renderer.draw_quad(logo[0],
+                                          create_transformation_matrix(
+                                              client.screen_size / 2,
+                                              Vec2(logo[1], logo[2]) * (t * 0.1 + 0.8)), transparency=1 - t)
+                pygame.display.flip()
+                time_animation_goes = pygame.time.get_ticks() - start_time
 
-        start_time = pygame.time.get_ticks()
-        time_animation_goes = 0
-        while time_animation_goes < logo_animation_time:
+            client.load_resources()
+
+            client.screens["debug"] = Screen(None, [
+                TextLabel(16, 16, Vec2(), client.renderer.default_font, "")
+            ], [])
+
+            client.play_sound("fx", "start")
+
+            start_time = pygame.time.get_ticks()
+            time_animation_goes = 0
+            while time_animation_goes < logo_animation_time:
+                glClear(GL_COLOR_BUFFER_BIT)
+                t = parametric_blend(time_animation_goes / logo_animation_time)
+                client.renderer.draw_quad(logo[0],
+                                          create_transformation_matrix(
+                                              client.screen_size / 2,
+                                              Vec2(logo[1], logo[2]) * ((1 - t) * 0.1 + 0.8)), transparency=t)
+                pygame.display.flip()
+                time_animation_goes = pygame.time.get_ticks() - start_time
+
             glClear(GL_COLOR_BUFFER_BIT)
-            t = parametric_blend(time_animation_goes/logo_animation_time)
-            client.renderer.draw_quad(logo[0],
-                  create_transformation_matrix(
-                      client.screen_size / 2,
-                      Vec2(logo[1], logo[2])*(t*0.1+0.8)), transparency=1-t)
+
+            continue
+
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+        if client.world is None:
+            client.screens["main_menu"].draw(client.renderer, client.camera, client.mouse_pos)
+            draw_cursor(client, CursorType.DEFAULT)
             pygame.display.flip()
-            time_animation_goes = pygame.time.get_ticks() - start_time
+            continue
 
-
-        client.load_resources()
-
-        client.screens["debug"] = Screen(None, [
-            TextLabel(16,16, Vec2(), client.renderer.default_font, "")
-        ], [])
-
-        client.play_sound("fx", "start")
-
-        start_time = pygame.time.get_ticks()
-        time_animation_goes = 0
-        while time_animation_goes < logo_animation_time:
-            glClear(GL_COLOR_BUFFER_BIT)
-            t = parametric_blend(time_animation_goes/logo_animation_time)
-            client.renderer.draw_quad(logo[0],
-                  create_transformation_matrix(
-                      client.screen_size / 2,
-                      Vec2(logo[1], logo[2])*((1-t)*0.1+0.8)), transparency=t)
+        if client.is_loading:
+            client.screens["main_menu_loading"].draw(client.renderer, client.camera, client.mouse_pos)
             pygame.display.flip()
-            time_animation_goes = pygame.time.get_ticks() - start_time
+            continue
 
-        glClear(GL_COLOR_BUFFER_BIT)
+        client.debug_text = get_debug_text()
 
-        continue
+        draw_world(client, clock, dt)
+        draw_cursor(client, CursorType.CROSSHAIR)
 
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-
-    if client.world is None:
-        client.screens["main_menu"].draw(client.renderer, client.camera, client.mouse_pos)
-        draw_cursor(client, CursorType.DEFAULT)
         pygame.display.flip()
-        continue
 
-    if client.is_loading:
-        client.screens["main_menu_loading"].draw(client.renderer, client.camera, client.mouse_pos)
-        pygame.display.flip()
-        continue
+    pygame.quit()
 
-    client.debug_text = get_debug_text()
 
-    draw_world(client, clock, dt)
-    draw_cursor(client, CursorType.CROSSHAIR)
-
-    pygame.display.flip()
-
-pygame.quit()
+if __name__ == "__main__":
+    run()

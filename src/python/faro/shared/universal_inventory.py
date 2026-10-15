@@ -1,6 +1,6 @@
-from src.client.client import Client
-from src.client.screens import *
-from src.shared.physics.objects import Inventory
+from faro.client.client import Client
+from faro.client.screens import *
+from faro.shared.physics.objects import Inventory
 
 
 class Slot(Button):
