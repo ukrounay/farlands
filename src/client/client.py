@@ -2,48 +2,22 @@ import re
 import subprocess
 import sys
 
-import pygame
-
 from src.client.player import Player
-from src.client.renderer import *
 from src.client.screens import *
 from src.shared.physics.objects import *
 from src.shared.sounds import load_sounds_from_json
 from src.shared.textures import *
 from src.shared.world import World
 
-
-import asyncio
 import json
-
-class GameClient:
-    def __init__(self, use_local_server=False, local_server=None):
-        self.use_local_server = use_local_server
-        self.local_server = local_server
-        self.websocket = None
-
-    async def connect(self, server_url=None):
-        if not self.use_local_server:
-            import websockets
-            self.websocket = await websockets.connect(server_url)
-            await self.websocket.send("player_1")  # send player ID
-
-    async def send_input(self, input_data):
-        if self.use_local_server and self.local_server:
-            self.local_server.handle_input("player_1", input_data)
-            return self.local_server.get_state()
-        else:
-            await self.websocket.send(json.dumps(input_data))
-            response = await self.websocket.recv()
-            return json.loads(response)
-
-
 
 class Client:
     player: Player
     world: World | None
     server_clock: pygame.time.Clock | None
     screen: pygame.Surface | None
+    screen_size: Vec2 | None
+    scene_size: Vec2 | None
     camera: Camera
     renderer: Renderer
     screens: dict
@@ -56,7 +30,6 @@ class Client:
     loaded: float
 
     def __init__(self, default_font):
-        self.screen_handlers = []
         self.debug_text = [""]
         self.cheat_inventory = None
         self.items = None
@@ -100,12 +73,6 @@ class Client:
     def get_loaded(self):
         return self.loaded
 
-
-    def initialize(self):
-        self.is_loading = True
-        self.load_resources()
-        self.is_loading = False
-        self.is_initialized = True
 
     def load_resources(self):
         # Load data from the JSON file
@@ -217,20 +184,9 @@ class Client:
                 waving = bg_waving[i]
             ) for i in range(len(self.bg_source))]
 
-        self.sceneWidth = self.background_layers[0].width
-        self.sceneHeight = self.background_layers[0].height
-
+        self.scene_size = Vec2(self.background_layers[0].width, self.background_layers[0].height)
 
         self.setup_screen(INITIAL_SCREEN_WIDTH, INITIAL_SCREEN_HEIGHT)
-
-
-
-
-
-        # Create map manager
-        # self.world.map_manager.update_chunk(0, 0)
-
-
 
         # Load keybinds from JSON file
         def load_keybinds(json_file):
@@ -246,66 +202,13 @@ class Client:
 
             return keybinds
 
-        # Load keybinds from the JSON file
         self.keybinds = load_keybinds('data/default_keybinds.json')
-
-
-        pass
 
     def create_ortho_projection_matrix(self):
         """
         Creates a 4x4 orthographic projection matrix for 2D rendering
         matching screen coordinates (0,0) top-left to (width,height) bottom-right.
         """
-        # matrix = np.identity(4, dtype=np.float32)
-
-        # # Left, Right, Bottom, Top, Near, Far
-        # left = 0.0
-        # right = self.screenWidth
-        # bottom = self.screenHeight
-        # top = 0.0
-        # near = -1.0
-        # far = 1.0
-        #
-        # matrix[0, 0] = 2.0 / (right - left)
-        # matrix[1, 1] = 2.0 / (top - bottom)
-        # matrix[2, 2] = -2.0 / (far - near)
-        #
-        # matrix[0, 3] = -(right + left) / (right - left)
-        # matrix[1, 3] = -(top + bottom) / (top - bottom)
-        # matrix[2, 3] = -(far + near) / (far - near)
-
-
-
-        # simple implementation
-
-        # matrix[0, 0] = 2.0 / self.screenWidth
-        # matrix[1, 1] = -2.0 / self.screenHeight  # Flip Y
-        # matrix[0, 3] = -1.0
-        # matrix[1, 3] = 1.0
-
-        # return matrix
-
-        # third implementation
-
-        # w = self.screenWidth
-        # h = self.screenHeight
-        # z_near = -1.0
-        # z_far = 1.0
-        #
-        # proj = np.identity(4, dtype=np.float32)
-        #
-        # proj[0, 0] = 2.0 / w
-        # proj[1, 1] = 2.0 / h  # No negative to avoid flipping
-        # proj[2, 2] = -2.0 / (z_far - z_near)
-        #
-        # proj[0, 3] = -1.0
-        # proj[1, 3] = -1.0  # Adjusted to move (0,0) to bottom-left
-        # proj[2, 3] = -(z_far + z_near) / (z_far - z_near)
-        #
-        # return proj
-
-        # with flipped y
 
         w = self.screenWidth
         h = self.screenHeight
@@ -314,7 +217,7 @@ class Client:
 
         proj = np.identity(4, dtype=np.float32)
         proj[0, 0] = 2.0 / w
-        proj[1, 1] = -2.0 / h  # Flip Y so (0,0) is top-left
+        proj[1, 1] = -2.0 / h
         proj[2, 2] = -2.0 / (z_far - z_near)
         proj[0, 3] = -1.0
         proj[1, 3] = 1.0
@@ -375,22 +278,9 @@ class Client:
             self.screen = pygame.display.set_mode((w, h), DOUBLEBUF | OPENGL | RESIZABLE)
 
 
-        # pygame.display.update()
-
         pygame.display.flip()  # Let SDL/OS process display mode change
         pygame.event.pump()  # Force processing window events
 
-        # width, height = self.screen.get_size()
-        # info = pygame.display.Info()
-        # width = info.current_w
-        # height = info.current_h
-        # viewport = glGetIntegerv(GL_VIEWPORT)
-        # x, y, width, height = viewport  # x, y are usually 0, 0
-
-        # ratio = width / height
-        # if self.sceneWidth is not None and self.sceneHeight is not None:
-        #     self.camera.scale = int(width / self.sceneWidth if ratio < 1 else height / self.sceneHeight)
-        # else: self.camera.scale = 1
         scale = 1
         if self.sceneWidth is not None and self.sceneHeight is not None:
             scale = math.ceil(max(width / self.sceneWidth, height / self.sceneHeight))

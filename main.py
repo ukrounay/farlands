@@ -237,25 +237,21 @@ player_adding_interval = 1500
 
 last_toggle_time = 0
 
-running = True
-server_running = True
-server_flags = [server_running]
+flags = [True]
 
-server_thread = threading.Thread(target=game_logic_thread, args=(server_flags, client,), daemon=True)
+server_thread = threading.Thread(target=game_logic_thread, args=([flags], client,), daemon=True)
 server_thread.start()
 
 
-while server_flags[0] or running:
-    dt = clock.tick() / 1000.0  # Конвертуємо час у секунди
-    # print(clock.get_fps())
-    if not server_flags[0]: running = False
+while flags[0]:
 
+    dt = clock.tick() / 1000.0
     now = pygame.time.get_ticks()
 
     for event in pygame.event.get():
         if event.type == QUIT:
-            server_flags[0] = False
-            pass
+            flags[0] = False
+            break
 
         elif event.type == VIDEORESIZE and now - last_toggle_time > TOGGLE_COOLDOWN_MS:
             client.setup_screen(*event.size)
@@ -275,20 +271,13 @@ while server_flags[0] or running:
         elif event.type == pygame.MOUSEWHEEL:
             client.input_flags["scroll_d"] = event.y
 
-    keys = pygame.key.get_pressed()
-
-    width, height = pygame.display.get_window_size()
-    if (width != client.screenWidth) or (height != client.screenHeight):
-        if width is not None and height is not None:
-            client.setup_screen(width, height)
-
-    # Render game here
-
-    screen_size = Vec2(client.screenWidth, client.screenHeight)
 
     glBindVertexArray(client.renderer.quad_vao)
 
     if not client.is_initialized:
+
+        client.setup_screen(*pygame.display.get_window_size())
+
         start_time = pygame.time.get_ticks()
         time_animation_goes = 0
         while time_animation_goes < logo_animation_time:
@@ -296,13 +285,13 @@ while server_flags[0] or running:
             t = parametric_blend(time_animation_goes/logo_animation_time)
             client.renderer.draw_quad(logo[0],
                   create_transformation_matrix(
-                      screen_size / 2,
+                      client.screen_size / 2,
                       Vec2(logo[1], logo[2])*(t*0.1+0.8)), transparency=1-t)
             pygame.display.flip()
             time_animation_goes = pygame.time.get_ticks() - start_time
 
 
-        client.initialize()
+        client.load_resources()
 
         client.screens["debug"] = Screen(None, [
             TextLabel(16,16, Vec2(), client.renderer.default_font, "")
@@ -317,7 +306,7 @@ while server_flags[0] or running:
             t = parametric_blend(time_animation_goes/logo_animation_time)
             client.renderer.draw_quad(logo[0],
                   create_transformation_matrix(
-                      screen_size / 2,
+                      client.screen_size / 2,
                       Vec2(logo[1], logo[2])*((1-t)*0.1+0.8)), transparency=t)
             pygame.display.flip()
             time_animation_goes = pygame.time.get_ticks() - start_time
